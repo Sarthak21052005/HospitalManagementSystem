@@ -5,17 +5,18 @@ const pool = require('../config/database');
 
 // ===== GET PENDING LAB ORDERS =====
 // ✅ FIXED: Changed 'lab' to 'lab_technician'
+// GET PENDING LAB ORDERS
 router.get('/orders/pending', requireRole('lab_technician'), async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         lo.order_id,
         lo.patient_id,
         lo.doctor_id,
         lo.urgency,
         lo.status,
         lo.clinical_notes,
-        lo.ordered_at,
+        lo.order_date, -- CORRECTED: Changed from ordered_at
         p.name as patient_name,
         p.age,
         p.gender,
@@ -29,16 +30,17 @@ router.get('/orders/pending', requireRole('lab_technician'), async (req, res) =>
       LEFT JOIN Lab_Order_Test lot ON lo.order_id = lot.order_id
       WHERE lo.status IN ('PENDING', 'IN_PROGRESS')
       GROUP BY lo.order_id, lo.patient_id, lo.doctor_id, lo.urgency, lo.status,
-               lo.clinical_notes, lo.ordered_at, p.name, p.age, p.gender, p.blood_type,
-               d.name, d.specialization
-      ORDER BY 
-        CASE lo.urgency 
-          WHEN 'URGENT' THEN 1 
-          WHEN 'ROUTINE' THEN 2 
-          ELSE 3 
-        END,
-        lo.ordered_at DESC
+      lo.clinical_notes, lo.order_date, p.name, p.age, p.gender, p.blood_type, -- CORRECTED
+      d.name, d.specialization
+      ORDER BY
+      CASE lo.urgency
+        WHEN 'URGENT' THEN 1
+        WHEN 'ROUTINE' THEN 2
+        ELSE 3
+      END,
+      lo.order_date DESC -- CORRECTED
     `);
+
 
     console.log(`✅ Found ${result.rows.length} lab orders`);
     res.json(result.rows);

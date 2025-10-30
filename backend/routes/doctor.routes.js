@@ -794,5 +794,60 @@ router.post('/prescribe-medicines', requireRole('doctor'), async (req, res) => {
       res.status(500).json({ message: 'Server error' });
     }
   });
+  // ===== GET COMPLETED LAB REPORTS FOR DOCTOR =====
+router.get('/reports/lab-completed', requireRole('doctor'), async (req, res) => {
+  try {
+    const doctor_id = req.session.user.id;
+    const result = await pool.query(`
+      SELECT
+        lo.order_id,
+        lo.completed_date,
+        p.patient_id,
+        p.name AS patient_name,
+        p.age AS patient_age,
+        d.name AS doctor_name,
+        lo.status
+      FROM Lab_Order lo
+      JOIN Patient p ON lo.patient_id = p.patient_id
+      JOIN Doctor d ON lo.doctor_id = d.doctor_id
+      WHERE lo.status = 'COMPLETED' AND lo.doctor_id = $1
+      ORDER BY lo.completed_date DESC;
+    `, [doctor_id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('❌ Error fetching completed lab reports:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ===== GET DETAILS FOR A SPECIFIC LAB REPORT =====
+router.get('/reports/lab/:orderId', requireRole('doctor'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const orderResult = await pool.query(`
+      SELECT lo.*, p.name as patient_name, d.name as doctor_name
+      FROM Lab_Order lo
+      JOIN Patient p ON lo.patient_id = p.patient_id
+      JOIN Doctor d ON lo.doctor_id = d.doctor_id
+      WHERE lo.order_id = $1
+    `, [orderId]);
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Lab report not found.' });
+    }
+    const testsResult = await pool.query(`
+      SELECT lot.result_value, lot.is_abnormal, ltc.test_name, ltc.normal_range, ltc.unit
+      FROM Lab_Order_Test lot
+      JOIN Lab_Test_Catalog ltc ON lot.test_id = ltc.test_id
+      WHERE lot.order_id = $1
+      ORDER BY ltc.test_name;
+    `, [orderId]);
+    const report = orderResult.rows[0];
+    report.tests = testsResult.rows;
+    res.json(report);
+  } catch (err) {
+    console.error(`❌ Error fetching lab report ${req.params.orderId}:`, err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
   module.exports = router;

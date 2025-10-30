@@ -212,4 +212,10 @@ addNursingNotes: (recordId, data) => request(`/nurse/reports/${recordId}/notes`,
   
   // Get lab statistics (optional)
   getLabStats: () => request('/lab/stats'),
+    // ===================================
+  // ✅ NEW: LAB REPORTS FOR DOCTOR
+  // ===================================
+  getCompletedLabReports: () => request('/doctor/reports/lab-completed'),
+  getLabReportDetails: (orderId) => request(`/doctor/reports/lab/${orderId}`),
+
 };
