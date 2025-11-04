@@ -4,7 +4,8 @@ import Navbar from '../components/Navbar';
 
 import AdmitPatientForm from '../components/AdmitPatientForm';
 import RecordVitalsForm from '../components/RecordVitalsForm';
-import NurseTaskDashboard from '../components/NurseTaskDashboard'; // ✅ NEW IMPORT
+import NurseTaskDashboard from '../components/NurseTaskDashboard';
+
 
 function NurseDashboard({ user, setUser }) {
   const [stats, setStats] = useState({
@@ -15,9 +16,9 @@ function NurseDashboard({ user, setUser }) {
   });
   const [wards, setWards] = useState([]);
   const [admittedPatients, setAdmittedPatients] = useState([]);
-  const [pendingTasks, setPendingTasks] = useState([]); // ✅ NEW: Track nurse tasks
+  const [pendingTasks, setPendingTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('overview'); // overview, wards, patients, bedManagement, tasks ✅
+  const [activeView, setActiveView] = useState('overview');
   const [selectedWard, setSelectedWard] = useState(null);
   const [wardBeds, setWardBeds] = useState([]);
   
@@ -26,9 +27,11 @@ function NurseDashboard({ user, setUser }) {
   const [showVitalsForm, setShowVitalsForm] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
+
   useEffect(() => {
     loadDashboardData();
   }, []);
+
 
   async function loadDashboardData() {
     try {
@@ -37,19 +40,20 @@ function NurseDashboard({ user, setUser }) {
         api.getNurseStats(),
         api.getNurseWards(),
         api.getAdmittedPatients(),
-        api.getNurseTasks('PENDING') // ✅ NEW: Load pending tasks
+        api.getNurseTasks('PENDING')
       ]);
       
       setStats(statsData);
       setWards(wardsData);
       setAdmittedPatients(patientsData);
-      setPendingTasks(tasksData); // ✅ NEW
+      setPendingTasks(tasksData);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
       setLoading(false);
     }
   }
+
 
   async function loadWardBeds(wardId) {
     try {
@@ -63,6 +67,7 @@ function NurseDashboard({ user, setUser }) {
     }
   }
 
+
   function handleCardClick(cardType) {
     switch(cardType) {
       case 'wards':
@@ -74,13 +79,14 @@ function NurseDashboard({ user, setUser }) {
       case 'critical':
         setActiveView('patients');
         break;
-      case 'tasks': // ✅ NEW
+      case 'tasks':
         setActiveView('tasks');
         break;
       default:
         setActiveView('overview');
     }
   }
+
 
   function getBedStatusColor(status) {
     switch(status) {
@@ -92,6 +98,7 @@ function NurseDashboard({ user, setUser }) {
     }
   }
 
+
   function getBedStatusIcon(status) {
     switch(status) {
       case 'available': return '🟢';
@@ -102,9 +109,11 @@ function NurseDashboard({ user, setUser }) {
     }
   }
 
+
   if (loading) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Loading dashboard...</div>;
   }
+
 
   return (
     <div className="app-container">
@@ -118,7 +127,7 @@ function NurseDashboard({ user, setUser }) {
               {activeView === 'wards' && 'Manage Your Assigned Wards'}
               {activeView === 'patients' && 'View Admitted Patients'}
               {activeView === 'bedManagement' && 'Ward Bed Management'}
-              {activeView === 'tasks' && 'Doctor Reports & Tasks'} {/* ✅ NEW */}
+              {activeView === 'tasks' && 'Doctor Reports & Tasks'}
               {activeView === 'overview' && 'Patient care and ward management'}
             </p>
           </div>
@@ -132,7 +141,8 @@ function NurseDashboard({ user, setUser }) {
           )}
         </div>
 
-        {/* Stats Cards - ✅ ADDED NEW TASKS CARD */}
+
+        {/* Stats Cards */}
         <div className="stats-grid">
           <div 
             className="stat-card" 
@@ -170,7 +180,6 @@ function NurseDashboard({ user, setUser }) {
             </div>
           </div>
           
-          {/* ✅ NEW: Medical Reports Task Card */}
           <div 
             className="stat-card" 
             style={{ 
@@ -227,95 +236,10 @@ function NurseDashboard({ user, setUser }) {
           </div>
         </div>
 
-        {/* OVERVIEW - Quick Actions */}
+
+        {/* OVERVIEW - ✅ REMOVED QUICK ACTION CARDS, KEPT ONLY RECENT ADMISSIONS */}
         {activeView === 'overview' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '24px' }}>
-              {/* ✅ NEW: Medical Reports Quick Action */}
-              <div className="card" style={{ 
-                textAlign: 'center', 
-                padding: '40px',
-                background: pendingTasks.length > 0 ? '#fef3c7' : 'white',
-                border: pendingTasks.length > 0 ? '2px solid #f59e0b' : '1px solid #e2e8f0',
-                position: 'relative'
-              }}>
-                {pendingTasks.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '12px',
-                    background: '#dc2626',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: '700',
-                    animation: 'pulse 2s infinite'
-                  }}>
-                    {pendingTasks.length}
-                  </div>
-                )}
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-                <h3>Doctor Reports</h3>
-                <p style={{ color: '#64748b', marginBottom: '20px' }}>
-                  {pendingTasks.length > 0 
-                    ? `${pendingTasks.length} new report${pendingTasks.length > 1 ? 's' : ''} to review`
-                    : 'No pending reports'}
-                </p>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => setActiveView('tasks')}
-                  style={{
-                    background: pendingTasks.length > 0 
-                      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                  }}
-                >
-                  {pendingTasks.length > 0 ? '⚠️ View Reports' : 'View Reports'}
-                </button>
-              </div>
-
-              <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🛏️</div>
-                <h3>Admit New Patient</h3>
-                <p style={{ color: '#64748b', marginBottom: '20px' }}>Assign patient to available bed</p>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => setShowAdmitForm(true)}
-                >
-                  + Admit Patient
-                </button>
-              </div>
-
-              <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>❤️</div>
-                <h3>Record Vital Signs</h3>
-                <p style={{ color: '#64748b', marginBottom: '20px' }}>Track patient vitals</p>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => setActiveView('patients')}
-                >
-                  Select Patient
-                </button>
-              </div>
-
-              <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏥</div>
-                <h3>View Wards</h3>
-                <p style={{ color: '#64748b', marginBottom: '20px' }}>Manage ward beds</p>
-                <button 
-                  className="btn btn-outline"
-                  onClick={() => setActiveView('wards')}
-                >
-                  View Wards
-                </button>
-              </div>
-            </div>
-
             {/* Recent Admissions */}
             <div className="card" style={{ marginTop: '24px' }}>
               <h2 style={{ marginBottom: '20px' }}>📋 Recent Admissions</h2>
@@ -376,13 +300,15 @@ function NurseDashboard({ user, setUser }) {
           </div>
         )}
 
-        {/* ✅ NEW: TASKS VIEW - Medical Reports from Doctors */}
+
+        {/* TASKS VIEW - Medical Reports from Doctors */}
         {activeView === 'tasks' && (
           <NurseTaskDashboard 
             user={user} 
-            onTaskUpdate={loadDashboardData} // Refresh data when task is updated
+            onTaskUpdate={loadDashboardData}
           />
         )}
+
 
         {/* WARDS VIEW */}
         {activeView === 'wards' && (
@@ -445,6 +371,7 @@ function NurseDashboard({ user, setUser }) {
           </div>
         )}
 
+
         {/* BED MANAGEMENT VIEW */}
         {activeView === 'bedManagement' && (
           <div className="card" style={{ marginTop: '24px' }}>
@@ -496,6 +423,7 @@ function NurseDashboard({ user, setUser }) {
             </div>
           </div>
         )}
+
 
         {/* PATIENTS VIEW */}
         {activeView === 'patients' && (
@@ -574,6 +502,7 @@ function NurseDashboard({ user, setUser }) {
         )}
       </div>
 
+
       {/* Admit Patient Modal */}
       {showAdmitForm && (
         <AdmitPatientForm
@@ -584,6 +513,7 @@ function NurseDashboard({ user, setUser }) {
           }}
         />
       )}
+
 
       {/* Record Vitals Modal */}
       {showVitalsForm && selectedPatient && (
@@ -600,7 +530,7 @@ function NurseDashboard({ user, setUser }) {
         />
       )}
 
-      {/* ✅ ADD PULSE ANIMATION CSS */}
+
       <style>{`
         @keyframes pulse {
           0%, 100% {
@@ -616,5 +546,6 @@ function NurseDashboard({ user, setUser }) {
     </div>
   );
 }
+
 
 export default NurseDashboard;

@@ -5,13 +5,11 @@ import { api } from '../api';
 function Dashboard({ user, setUser }) {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ patients: 0, doctors: 0, nurses: 0 });
-  const [recentActivity, setRecentActivity] = useState([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activeNav, setActiveNav] = useState('dashboard');
 
   useEffect(() => {
     loadStats();
-    loadRecentActivity();
   }, []);
 
   async function loadStats() {
@@ -23,15 +21,6 @@ function Dashboard({ user, setUser }) {
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
-  }
-
-  async function loadRecentActivity() {
-    // Simulated recent activity - replace with actual API call
-    setRecentActivity([
-      { id: 1, type: 'patient', action: 'New patient registered', time: '5 min ago', icon: '👤' },
-      { id: 2, type: 'appointment', action: 'Appointment scheduled', time: '15 min ago', icon: '📅' },
-      { id: 3, type: 'staff', action: 'Doctor checked in', time: '1 hour ago', icon: '👨‍⚕️' },
-    ]);
   }
 
   async function handleLogout() {
@@ -46,13 +35,15 @@ function Dashboard({ user, setUser }) {
       navigate('/');
     }
   }
+const navItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
+  { id: 'staff', label: 'Staff', icon: '👥', path: '/staff' },
+  { id: 'inventory', label: 'Inventory', icon: '📦', path: '/inventory' },
+  { id: 'wards', label: 'Ward Assignments', icon: '🏥', path: '/ward-assignments' },
+  { id: 'beds', label: 'Bed Management', icon: '🛏️', path: '/bed-management' },  // ✅ NEW
+];
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard' },
-    { id: 'staff', label: 'Staff', icon: '👥', path: '/staff' },
-    { id: 'inventory', label: 'Inventory', icon: '📦', path: '/inventory' },
-  ];
-
+  
   const statCards = [
     { 
       title: 'Total Patients', 
@@ -83,12 +74,14 @@ function Dashboard({ user, setUser }) {
     },
   ];
 
-  const quickActions = [
-    { label: 'Register Patient', icon: '➕', color: '#3B82F6', action: () => navigate('/reception') },
-    { label: 'Add Staff', icon: '👤', color: '#10B981', action: () => navigate('/staff') },
-    { label: 'Inventory', icon: '📦', color: '#F59E0B', action: () => navigate('/inventory') },
-    { label: 'Reports', icon: '📊', color: '#8B5CF6', action: () => alert('Reports coming soon!') },
-  ];
+ const quickActions = [
+  { label: 'Register Patient', icon: '➕', color: '#3B82F6', action: () => navigate('/reception') },
+  { label: 'Add Staff', icon: '👤', color: '#10B981', action: () => navigate('/staff') },
+  { label: 'Manage Inventory', icon: '📦', color: '#F59E0B', action: () => navigate('/inventory') },
+  { label: 'Ward Assignments', icon: '🏥', color: '#EC4899', action: () => navigate('/ward-assignments') },
+  { label: 'Bed Management', icon: '🛏️', color: '#6366F1', action: () => navigate('/bed-management') },  // ✅ NEW
+];
+
 
   return (
     <div style={{ minHeight: '100vh', background: '#F1F5F9' }}>
@@ -334,7 +327,6 @@ function Dashboard({ user, setUser }) {
                 e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
               }}
             >
-              {/* Gradient background effect */}
               <div style={{
                 position: 'absolute',
                 top: 0,
@@ -390,110 +382,63 @@ function Dashboard({ user, setUser }) {
           ))}
         </div>
 
-        {/* Two Column Layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '32px' }}>
-          {/* Quick Actions */}
-          <div style={{
-            background: 'white',
-            padding: '28px',
-            borderRadius: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            border: '1px solid #E2E8F0'
+        {/* Quick Actions */}
+        <div style={{
+          background: 'white',
+          padding: '28px',
+          borderRadius: '16px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          border: '1px solid #E2E8F0',
+          marginBottom: '32px'
+        }}>
+          <h3 style={{ 
+            fontSize: '20px', 
+            fontWeight: '700', 
+            color: '#1E293B', 
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            <h3 style={{ 
-              fontSize: '20px', 
-              fontWeight: '700', 
-              color: '#1E293B', 
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>⚡</span>
-              Quick Actions
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-              {quickActions.map((action, idx) => (
-                <button
-                  key={idx}
-                  onClick={action.action}
-                  style={{
-                    padding: '20px',
-                    background: `${action.color}10`,
-                    border: `2px solid ${action.color}30`,
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    textAlign: 'left'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = `${action.color}20`;
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.borderColor = action.color;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = `${action.color}10`;
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.borderColor = `${action.color}30`;
-                  }}
-                >
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>{action.icon}</div>
-                  <div style={{ color: action.color, fontWeight: '600', fontSize: '15px' }}>
-                    {action.label}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div style={{
-            background: 'white',
-            padding: '28px',
-            borderRadius: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            border: '1px solid #E2E8F0'
-          }}>
-            <h3 style={{ 
-              fontSize: '20px', 
-              fontWeight: '700', 
-              color: '#1E293B', 
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>🔔</span>
-              Recent Activity
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {recentActivity.map(activity => (
-                <div
-                  key={activity.id}
-                  style={{
-                    padding: '16px',
-                    background: '#F8FAFC',
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = '#F1F5F9'}
-                  onMouseLeave={(e) => e.target.style.background = '#F8FAFC'}
-                >
-                  <div style={{ fontSize: '24px' }}>{activity.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1E293B', marginBottom: '2px' }}>
-                      {activity.action}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#94A3B8' }}>
-                      {activity.time}
-                    </div>
-                  </div>
+            <span>⚡</span>
+            Quick Actions
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+            {quickActions.map((action, idx) => (
+              <button
+                key={idx}
+                onClick={action.action}
+                style={{
+                  padding: '24px',
+                  background: `${action.color}10`,
+                  border: `2px solid ${action.color}30`,
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = `${action.color}20`;
+                  e.target.style.transform = 'translateY(-4px)';
+                  e.target.style.borderColor = action.color;
+                  e.target.style.boxShadow = `0 8px 20px ${action.color}30`;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = `${action.color}10`;
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.borderColor = `${action.color}30`;
+                  e.target.style.boxShadow = 'none';
+                }}
+              >
+                <div style={{ fontSize: '36px' }}>{action.icon}</div>
+                <div style={{ color: action.color, fontWeight: '700', fontSize: '16px' }}>
+                  {action.label}
                 </div>
-              ))}
-            </div>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -529,7 +474,7 @@ function Dashboard({ user, setUser }) {
               </h3>
             </div>
             <p style={{ margin: 0, opacity: 0.9, fontSize: '15px' }}>
-              All hospital management modules are running smoothly. Admin can manage staff, Reception can register patients.
+              All hospital management modules are running smoothly. Ready to manage staff, patients, and ward assignments.
             </p>
           </div>
           

@@ -28,7 +28,7 @@ function LabTechnicianDashboard({ user, setUser }) {
       setStats({
         pending: pending.length,
         inProgress: inProgress.length,
-        completedToday: 0 // You can add a separate API call for this
+        completedToday: 0
       });
     } catch (err) {
       console.error('Failed to load orders:', err);
@@ -52,6 +52,7 @@ function LabTechnicianDashboard({ user, setUser }) {
   async function viewOrderDetails(orderId) {
     try {
       const orderData = await api.getLabOrderDetails(orderId);
+      console.log('📦 Received order data:', orderData); // Debug log
       setSelectedOrder(orderData);
       setShowResultModal(true);
     } catch (err) {
@@ -383,13 +384,18 @@ function ResultModal({ order, onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // ✅ FIXED: Check if tests exist before initializing
+    if (!order || !order.tests) {
+      console.error('❌ Order or tests missing:', order);
+      return;
+    }
+
     // Initialize results state
     const initialResults = {};
     order.tests.forEach(test => {
       initialResults[test.test_id] = {
         resultValue: test.result_value || '',
-        isAbnormal: test.is_abnormal || false,
-        notes: test.technician_notes || ''
+        technicianNotes: test.technician_notes || ''
       };
     });
     setResults(initialResults);
@@ -416,23 +422,31 @@ function ResultModal({ order, onClose, onSuccess }) {
     try {
       setSubmitting(true);
       
+      // ✅ FIXED: Use correct field names and structure
       const formattedResults = order.tests.map(test => ({
-        testId: test.test_id,
-        resultValue: results[test.test_id].resultValue,
-        isAbnormal: results[test.test_id].isAbnormal,
-        notes: results[test.test_id].notes
+        test_id: test.test_id,
+        result_value: results[test.test_id].resultValue,
+        technician_notes: results[test.test_id].technicianNotes || null
       }));
 
-      await api.submitLabResults(order.order.order_id, formattedResults);
+      console.log('📤 Submitting results for order:', order.order_id);
+      
+      // ✅ FIXED: Use order.order_id directly (not order.order.order_id)
+      await api.submitLabResults(order.order_id, formattedResults);
       
       alert('✅ Lab results submitted successfully!');
       onSuccess();
     } catch (err) {
       console.error('Error submitting results:', err);
-      alert('❌ Failed to submit results');
+      alert('❌ Failed to submit results: ' + (err.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // ✅ FIXED: Add safety check
+  if (!order || !order.tests) {
+    return null;
   }
 
   return (
@@ -477,7 +491,7 @@ function ResultModal({ order, onClose, onSuccess }) {
                 ⚗️ Enter Lab Results
               </h2>
               <p style={{ margin: 0, color: '#64748b', fontSize: '16px' }}>
-                Patient: <strong>{order.order.patient_name}</strong> • {order.order.age}y • {order.order.gender}
+                Patient: <strong>{order.patient_name}</strong> • {order.age}y • {order.gender}
               </p>
             </div>
             <button
@@ -546,29 +560,14 @@ function ResultModal({ order, onClose, onSuccess }) {
                   />
                 </div>
 
-                {/* Abnormal Flag */}
-                <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={results[test.test_id]?.isAbnormal || false}
-                      onChange={(e) => updateResult(test.test_id, 'isAbnormal', e.target.checked)}
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontWeight: '600', fontSize: '14px' }}>
-                      ⚠️ Mark as Abnormal
-                    </span>
-                  </label>
-                </div>
-
                 {/* Notes */}
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>
                     Technician Notes
                   </label>
                   <textarea
-                    value={results[test.test_id]?.notes || ''}
-                    onChange={(e) => updateResult(test.test_id, 'notes', e.target.value)}
+                    value={results[test.test_id]?.technicianNotes || ''}
+                    onChange={(e) => updateResult(test.test_id, 'technicianNotes', e.target.value)}
                     placeholder="Any observations or notes..."
                     rows={2}
                     style={{

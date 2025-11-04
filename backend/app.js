@@ -16,7 +16,6 @@ const inventoryRoutes = require('./routes/inventory.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const nurseRoutes = require('./routes/nurse.routes');
 const labRoutes = require('./routes/lab.routes'); // ✅ ADDED LAB ROUTES
-
 const app = express();
 
 // ===== MIDDLEWARE =====
@@ -48,7 +47,7 @@ app.use('/api/admin/inventory', inventoryRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/nurse', nurseRoutes);
 app.use('/api/lab',labRoutes); // ✅ ADDED LAB ROUTES
-
+// app.use('/api/admin', wardAssignmentRoutes);
 // ===== ERROR HANDLERS =====
 app.use((req, res) => {
   console.log(`❌ Route not found: ${req.method} ${req.path}`); // ✅ ADDED for debugging

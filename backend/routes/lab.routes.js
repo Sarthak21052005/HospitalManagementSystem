@@ -4,8 +4,6 @@ const { requireRole } = require('../middleware/auth');
 const pool = require('../config/database');
 
 // ===== GET PENDING LAB ORDERS =====
-// ✅ FIXED: Changed 'lab' to 'lab_technician'
-// GET PENDING LAB ORDERS
 router.get('/orders/pending', requireRole('lab_technician'), async (req, res) => {
   try {
     const result = await pool.query(`
@@ -16,7 +14,7 @@ router.get('/orders/pending', requireRole('lab_technician'), async (req, res) =>
         lo.urgency,
         lo.status,
         lo.clinical_notes,
-        lo.order_date, -- CORRECTED: Changed from ordered_at
+        lo.order_date,
         p.name as patient_name,
         p.age,
         p.gender,
@@ -30,7 +28,7 @@ router.get('/orders/pending', requireRole('lab_technician'), async (req, res) =>
       LEFT JOIN Lab_Order_Test lot ON lo.order_id = lot.order_id
       WHERE lo.status IN ('PENDING', 'IN_PROGRESS')
       GROUP BY lo.order_id, lo.patient_id, lo.doctor_id, lo.urgency, lo.status,
-      lo.clinical_notes, lo.order_date, p.name, p.age, p.gender, p.blood_type, -- CORRECTED
+      lo.clinical_notes, lo.order_date, p.name, p.age, p.gender, p.blood_type,
       d.name, d.specialization
       ORDER BY
       CASE lo.urgency
@@ -38,9 +36,8 @@ router.get('/orders/pending', requireRole('lab_technician'), async (req, res) =>
         WHEN 'ROUTINE' THEN 2
         ELSE 3
       END,
-      lo.order_date DESC -- CORRECTED
+      lo.order_date DESC
     `);
-
 
     console.log(`✅ Found ${result.rows.length} lab orders`);
     res.json(result.rows);
@@ -75,12 +72,12 @@ router.get('/orders/:orderId', requireRole('lab_technician'), async (req, res) =
       return res.status(404).json({ message: 'Lab order not found' });
     }
 
-    // Get all tests for this order
+    // ✅ FIXED: Changed techician_notes to technician_notes
     const testsResult = await pool.query(`
       SELECT 
         lot.test_id,
         lot.result_value,
-        lot.remarks,
+        lot.technician_notes,
         ltc.test_name,
         ltc.test_category,
         ltc.normal_range,
@@ -111,13 +108,24 @@ router.patch('/orders/:orderId/status', requireRole('lab_technician'), async (re
       return res.status(400).json({ message: 'Invalid status' });
     }
 
-    const result = await pool.query(`
-      UPDATE Lab_Order 
-      SET status = $1,
-          completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-      WHERE order_id = $2
-      RETURNING *
-    `, [status, orderId]);
+    // ✅ BETTER FIX: Use separate queries based on status
+    let result;
+    if (status === 'COMPLETED') {
+      result = await pool.query(`
+        UPDATE Lab_Order 
+        SET status = $1,
+            completed_date = CURRENT_TIMESTAMP
+        WHERE order_id = $2
+        RETURNING *
+      `, [status, orderId]);
+    } else {
+      result = await pool.query(`
+        UPDATE Lab_Order 
+        SET status = $1
+        WHERE order_id = $2
+        RETURNING *
+      `, [status, orderId]);
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Lab order not found' });
@@ -127,7 +135,7 @@ router.patch('/orders/:orderId/status', requireRole('lab_technician'), async (re
     res.json(result.rows[0]);
   } catch (err) {
     console.error('❌ Error updating lab order status:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
@@ -138,28 +146,28 @@ router.post('/orders/:orderId/results', requireRole('lab_technician'), async (re
     await client.query('BEGIN');
 
     const { orderId } = req.params;
-    const { results } = req.body; // Array of { test_id, result_value, remarks }
+    const { results } = req.body; // Array of { test_id, result_value, technician_notes }
 
     if (!results || !Array.isArray(results)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Results must be an array' });
     }
 
-    // Update each test result
+    // ✅ FIXED: Changed techincian_notes to technician_notes
     for (const result of results) {
       await client.query(`
         UPDATE Lab_Order_Test 
         SET result_value = $1,
-            remarks = $2
+            technician_notes = $2
         WHERE order_id = $3 AND test_id = $4
-      `, [result.result_value, result.remarks || null, orderId, result.test_id]);
+      `, [result.result_value, result.technician_notes || null, orderId, result.test_id]);
     }
 
     // Mark order as completed
     await client.query(`
       UPDATE Lab_Order 
       SET status = 'COMPLETED',
-          completed_at = CURRENT_TIMESTAMP
+          completed_date = CURRENT_TIMESTAMP
       WHERE order_id = $1
     `, [orderId]);
 
@@ -181,7 +189,7 @@ router.get('/stats', requireRole('lab_technician'), async (req, res) => {
     const [pending, inProgress, completedToday] = await Promise.all([
       pool.query(`SELECT COUNT(*) as count FROM Lab_Order WHERE status = 'PENDING'`),
       pool.query(`SELECT COUNT(*) as count FROM Lab_Order WHERE status = 'IN_PROGRESS'`),
-      pool.query(`SELECT COUNT(*) as count FROM Lab_Order WHERE status = 'COMPLETED' AND DATE(completed_at) = CURRENT_DATE`)
+      pool.query(`SELECT COUNT(*) as count FROM Lab_Order WHERE status = 'COMPLETED' AND DATE(completed_date) = CURRENT_DATE`)
     ]);
 
     res.json({

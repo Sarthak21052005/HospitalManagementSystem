@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import MedicalReportForm from '../components/MedicalReportForm';
+import CompletedLabReports from '../components/CompletedLabReports'; // ✅ NEW IMPORT
+
 
 function DoctorDashboard({ user, setUser }) {
   const navigate = useNavigate();
@@ -24,9 +26,11 @@ function DoctorDashboard({ user, setUser }) {
   const [showReportForm, setShowReportForm] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
+
   useEffect(() => {
     loadDashboardData();
   }, []);
+
 
   async function loadDashboardData() {
     try {
@@ -49,17 +53,21 @@ function DoctorDashboard({ user, setUser }) {
     }
   }
 
+
   function handleCardClick(cardType) {
     setActiveView(cardType);
   }
+
 
   function handleCreateReport(patient) {
     setSelectedPatient(patient);
     setShowReportForm(true);
   }
 
+
   function getFilteredPatients() {
     let filtered = allPatients;
+
 
     if (searchQuery.trim()) {
       filtered = filtered.filter(p => 
@@ -68,15 +76,19 @@ function DoctorDashboard({ user, setUser }) {
       );
     }
 
+
     return filtered;
   }
+
 
   function getFilteredAppointments() {
     let filtered = allAppointments;
 
+
     if (filterType !== 'all') {
       filtered = filtered.filter(apt => apt.status === filterType);
     }
+
 
     if (searchQuery.trim()) {
       filtered = filtered.filter(apt => 
@@ -85,13 +97,16 @@ function DoctorDashboard({ user, setUser }) {
       );
     }
 
+
     return filtered;
   }
+
 
   function formatDate(date) {
     if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-IN');
   }
+
 
   function formatTime(time) {
     if (!time) return 'N/A';
@@ -101,11 +116,13 @@ function DoctorDashboard({ user, setUser }) {
     return time;
   }
 
+
   // Style object to prevent hover effect
   const tableRowStyle = {
     backgroundColor: 'transparent',
     transition: 'none'
   };
+
 
   if (loading) {
     return (
@@ -142,6 +159,7 @@ function DoctorDashboard({ user, setUser }) {
     );
   }
 
+
   return (
     <div className="app-container">
       <style>{`
@@ -164,6 +182,7 @@ function DoctorDashboard({ user, setUser }) {
               {activeView === 'schedule' && "Today's Registered Patients"}
               {activeView === 'patients' && 'All Registered Patients'}
               {activeView === 'appointments' && 'Pending Patients'}
+              {activeView === 'lab_reports' && 'Completed Lab Reports'} {/* ✅ ADDED */}
             </p>
           </div>
           {activeView !== 'overview' && (
@@ -175,6 +194,7 @@ function DoctorDashboard({ user, setUser }) {
             </button>
           )}
         </div>
+
 
         {/* Stats Cards */}
         <div className="stats-grid">
@@ -232,20 +252,26 @@ function DoctorDashboard({ user, setUser }) {
             </div>
           </div>
           
+          {/* ✅ REPLACED: Lab Reports Card (was Reports This Month) */}
           <div 
             className="stat-card" 
             style={{ 
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', 
-              color: 'white'
+              background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', 
+              color: 'white',
+              cursor: 'pointer',
+              transform: activeView === 'lab_reports' ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 0.3s ease'
             }}
+            onClick={() => handleCardClick('lab_reports')}
           >
-            <div className="stat-icon" style={{ fontSize: '36px' }}>✅</div>
+            <div className="stat-icon" style={{ fontSize: '36px' }}>🧪</div>
             <div className="stat-content">
-              <h3>{stats.completedThisMonth}</h3>
-              <p>Reports This Month</p>
+              <h3>Lab Reports</h3>
+              <p>View Completed Tests</p>
             </div>
           </div>
         </div>
+
 
         {/* OVERVIEW */}
         {activeView === 'overview' && (
@@ -337,6 +363,7 @@ function DoctorDashboard({ user, setUser }) {
               )}
             </div>
 
+
             <div className="card" style={{ marginTop: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2>👥 Recent Patients ({allPatients.length})</h2>
@@ -427,6 +454,7 @@ function DoctorDashboard({ user, setUser }) {
           </div>
         )}
 
+
         {/* TODAY'S SCHEDULE VIEW */}
         {activeView === 'schedule' && (
           <div className="card" style={{ marginTop: '24px' }}>
@@ -510,6 +538,7 @@ function DoctorDashboard({ user, setUser }) {
             )}
           </div>
         )}
+
 
         {/* ALL PATIENTS VIEW */}
         {activeView === 'patients' && (
@@ -612,6 +641,7 @@ function DoctorDashboard({ user, setUser }) {
           </div>
         )}
 
+
         {/* PENDING PATIENTS VIEW */}
         {activeView === 'appointments' && (
           <div className="card" style={{ marginTop: '24px' }}>
@@ -689,7 +719,16 @@ function DoctorDashboard({ user, setUser }) {
             )}
           </div>
         )}
+
+
+        {/* ✅ NEW: LAB REPORTS VIEW */}
+        {activeView === 'lab_reports' && (
+          <div className="card" style={{ marginTop: '24px' }}>
+            <CompletedLabReports />
+          </div>
+        )}
       </div>
+
 
       {/* Medical Report Form Modal */}
       {showReportForm && selectedPatient && (
@@ -709,5 +748,6 @@ function DoctorDashboard({ user, setUser }) {
     </div>
   );
 }
+
 
 export default DoctorDashboard;
