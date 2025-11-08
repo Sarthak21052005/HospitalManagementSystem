@@ -1,6 +1,5 @@
 const DoctorService = require('../services/doctor.Service');
-const ErrorHandler = require('../utils/errorHandler');
-
+const ErrorHandler = require('../utils/errorhandler');
 class DoctorController {
   // ===== STATS =====
   static async getStats(req, res) {
