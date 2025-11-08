@@ -88,6 +88,19 @@ export const api = {
     body: data
   }),
 
+  // ===== ADMIN - BED MANAGEMENT =====
+  getBeds: () => request('/admin/beds'),
+  getBedsByWard: (wardId) => request(`/admin/beds/ward/${wardId}`),
+  getWardsWithBedStats: () => request('/admin/wards-with-bed-stats'),
+  addBed: (ward_id, bed_number) => 
+    request('/admin/beds', { method: 'POST', body: { ward_id, bed_number } }),
+  updateBedStatus: (bed_id, status) => 
+    request(`/admin/beds/${bed_id}`, { method: 'PUT', body: { status } }),
+  deleteBed: (bed_id) => 
+    request(`/admin/beds/${bed_id}`, { method: 'DELETE' }),
+  bulkAddBeds: (ward_id, bed_prefix, num_beds) => 
+    request('/admin/beds/bulk-add', { method: 'POST', body: { ward_id, bed_prefix, num_beds } }),
+
   // ===== DOCTOR ROUTES =====
   getDoctorStats: () => request('/doctor/stats'),
   getAllPatients: () => request('/doctor/patients'),
@@ -135,9 +148,6 @@ export const api = {
   getLabReportDetails: (orderId) => request(`/doctor/reports/lab/${orderId}`),
 
   // ===== NURSE ROUTES =====
-  // Get prescribed medicines for a report (Nurse views this)
-  getNursePrescribedMedicines: (recordId) => request(`/nurse/reports/${recordId}/medicines`),
-  
   // Dashboard & Stats
   getNurseStats: () => request('/nurse/stats'),
   
@@ -146,7 +156,10 @@ export const api = {
   getWardBeds: (wardId) => request(`/nurse/wards/${wardId}/beds`),
   
   // Patient Admission & Discharge
-  getAvailablePatients: () => request('/nurse/patients/available'),
+  // ✅ UPDATED: Changed to use eligible-for-admission endpoint
+  getAvailablePatients: () => request('/nurse/patients/eligible-for-admission'),
+  getEligiblePatients: () => request('/nurse/patients/eligible-for-admission'),
+  
   getAdmittedPatients: () => request('/nurse/patients/admitted'),
   createAdmission: (data) => request('/nurse/admissions', {
     method: 'POST',
@@ -175,6 +188,9 @@ export const api = {
   
   // Get full medical report details
   getNurseMedicalReport: (recordId) => request(`/nurse/reports/${recordId}`),
+  
+  // Get prescribed medicines for a report (Nurse views this)
+  getNursePrescribedMedicines: (recordId) => request(`/nurse/reports/${recordId}/medicines`),
   
   // Claim task
   claimNurseTask: (taskId) => request(`/nurse/tasks/${taskId}/claim`, {
@@ -214,17 +230,4 @@ export const api = {
   
   // Get lab statistics
   getLabStats: () => request('/lab/stats'),
-  // ===== BED MANAGEMENT =====
-getBeds: () => request('/admin/beds'),
-getBedsByWard: (wardId) => request(`/admin/beds/ward/${wardId}`),
-getWardsWithBedStats: () => request('/admin/wards-with-bed-stats'),
-addBed: (ward_id, bed_number) => 
-  request('/admin/beds', { method: 'POST', body: { ward_id, bed_number } }),
-updateBedStatus: (bed_id, status) => 
-  request(`/admin/beds/${bed_id}`, { method: 'PUT', body: { status } }),
-deleteBed: (bed_id) => 
-  request(`/admin/beds/${bed_id}`, { method: 'DELETE' }),
-bulkAddBeds: (ward_id, bed_prefix, num_beds) => 
-  request('/admin/beds/bulk-add', { method: 'POST', body: { ward_id, bed_prefix, num_beds } }),
-
 };

@@ -176,7 +176,7 @@ function DoctorDashboard({ user, setUser }) {
       <div className="main-content">
         <div className="dashboard-header">
           <div>
-            <h1>👨‍⚕️ Welcome, Dr. {user.name}</h1>
+            <h1>👨‍⚕️ Welcome,  {user.name}</h1>
             <p style={{ color: '#64748b', marginTop: '8px' }}>
               {activeView === 'overview' && 'Your medical practice dashboard'}
               {activeView === 'schedule' && "Today's Registered Patients"}

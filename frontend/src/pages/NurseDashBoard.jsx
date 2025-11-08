@@ -439,7 +439,7 @@ function NurseDashboard({ user, setUser }) {
             </div>
 
             {admittedPatients.length === 0 ? (
-              <p style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>
+              <p style={{ color:'green', textAlign: 'center', padding: '40px' }}>
                 No patients admitted in your wards.
               </p>
             ) : (
