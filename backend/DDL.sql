@@ -1,9 +1,9 @@
 -- ========================================
--- COMPLETE HOSPITAL MANAGEMENT SYSTEM
--- Enhanced with Stored Procedures & Advanced Triggers
+-- HOSPITAL MANAGEMENT SYSTEM
+-- Production Schema with Stored Procedures & Triggers
 -- ========================================
 
--- Drop indexes first (IF EXISTS prevents errors)
+-- Drop indexes first
 DROP INDEX IF EXISTS idx_prescription_record CASCADE;
 DROP INDEX IF EXISTS idx_prescription_patient CASCADE;
 DROP INDEX IF EXISTS idx_vital_signs_patient CASCADE;
@@ -17,7 +17,7 @@ DROP INDEX IF EXISTS idx_task_patient CASCADE;
 DROP INDEX IF EXISTS idx_task_record CASCADE;
 DROP INDEX IF EXISTS IDX_session_expire CASCADE;
 
--- Drop existing tables (in CORRECT order - dependencies first!)
+-- Drop existing tables
 DROP TABLE IF EXISTS Lab_Order_Test CASCADE;
 DROP TABLE IF EXISTS Lab_Order CASCADE;
 DROP TABLE IF EXISTS Task CASCADE;
@@ -45,7 +45,6 @@ DROP TABLE IF EXISTS session CASCADE;
 
 -- ===== CORE TABLES =====
 
--- Ward table
 CREATE TABLE Ward (
     ward_id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
@@ -55,7 +54,6 @@ CREATE TABLE Ward (
     bed_capacity INT NOT NULL DEFAULT 10
 );
 
--- Patient table
 CREATE TABLE Patient (
     patient_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -74,14 +72,12 @@ CREATE TABLE Patient (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Admin table
 CREATE TABLE Admin (
     admin_id VARCHAR(50) PRIMARY KEY,
     password VARCHAR(255) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Doctor table
 CREATE TABLE Doctor (
     doctor_id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -94,7 +90,6 @@ CREATE TABLE Doctor (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Nurse table
 CREATE TABLE Nurse (
     nurse_id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -105,9 +100,6 @@ CREATE TABLE Nurse (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== LAB MANAGEMENT SYSTEM =====
-
--- Lab Technician table
 CREATE TABLE Lab_Technician (
     technician_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -119,7 +111,6 @@ CREATE TABLE Lab_Technician (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Lab Test Catalog
 CREATE TABLE Lab_Test_Catalog (
     test_id SERIAL PRIMARY KEY,
     test_name VARCHAR(100) NOT NULL,
@@ -130,7 +121,6 @@ CREATE TABLE Lab_Test_Catalog (
     is_active BOOLEAN DEFAULT TRUE
 );
 
--- ===== MEDICAL INVENTORY =====
 CREATE TABLE Medical_Inventory (
     item_id SERIAL PRIMARY KEY,
     item_name VARCHAR(200) NOT NULL,
@@ -167,7 +157,6 @@ CREATE TABLE Inventory_Transaction (
     transaction_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== BED MANAGEMENT =====
 CREATE TABLE Bed (
     bed_id SERIAL PRIMARY KEY,
     ward_id INT REFERENCES Ward(ward_id) ON DELETE SET NULL,
@@ -177,9 +166,6 @@ CREATE TABLE Bed (
     UNIQUE(ward_id, bed_number)
 );
 
--- ===== SCHEDULING TABLES =====
-
--- Doctor Ward Schedule
 CREATE TABLE Doctor_Ward_Schedule (
     schedule_id SERIAL PRIMARY KEY,
     doctor_id INT REFERENCES Doctor(doctor_id) ON DELETE CASCADE,
@@ -190,7 +176,6 @@ CREATE TABLE Doctor_Ward_Schedule (
     CONSTRAINT valid_week_range CHECK (week_end >= week_start)
 );
 
--- Nurse Ward Schedule
 CREATE TABLE Nurse_Ward_Schedule (
     schedule_id SERIAL PRIMARY KEY,
     nurse_id INT REFERENCES Nurse(nurse_id) ON DELETE CASCADE,
@@ -210,7 +195,6 @@ CREATE TABLE Ward_Nurse (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== APPOINTMENTS =====
 CREATE TABLE Appointment (
     appointment_id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES Patient(patient_id) ON DELETE CASCADE,
@@ -226,7 +210,6 @@ CREATE TABLE Appointment (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== MEDICAL RECORDS =====
 CREATE TABLE Medical_Record (
     record_id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES Patient(patient_id) ON DELETE CASCADE,
@@ -242,7 +225,6 @@ CREATE TABLE Medical_Record (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== PRESCRIPTION TABLE =====
 CREATE TABLE Prescription (
     prescription_id SERIAL PRIMARY KEY,
     record_id INTEGER NOT NULL REFERENCES Medical_Record(record_id) ON DELETE CASCADE,
@@ -261,7 +243,6 @@ CREATE TABLE Prescription (
 CREATE INDEX idx_prescription_record ON Prescription(record_id);
 CREATE INDEX idx_prescription_patient ON Prescription(patient_id);
 
--- ===== VITAL SIGNS TABLE =====
 CREATE TABLE Vital_Signs (
     vital_id SERIAL PRIMARY KEY,
     patient_id INTEGER NOT NULL REFERENCES Patient(patient_id) ON DELETE CASCADE,
@@ -281,7 +262,6 @@ CREATE INDEX idx_vital_signs_nurse ON Vital_Signs(nurse_id);
 CREATE INDEX idx_vital_signs_record ON Vital_Signs(record_id);
 CREATE INDEX idx_vital_signs_date ON Vital_Signs(recorded_at);
 
--- ===== TASK TABLE =====
 CREATE TABLE Task (
     task_id SERIAL PRIMARY KEY,
     record_id INTEGER NOT NULL REFERENCES Medical_Record(record_id) ON DELETE CASCADE,
@@ -306,7 +286,6 @@ CREATE INDEX idx_task_nurse ON Task(assigned_nurse_id);
 CREATE INDEX idx_task_patient ON Task(patient_id);
 CREATE INDEX idx_task_record ON Task(record_id);
 
--- ===== IPD ADMISSIONS =====
 CREATE TABLE IPD_Admission (
     admission_id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES Patient(patient_id) ON DELETE CASCADE,
@@ -323,7 +302,6 @@ CREATE TABLE IPD_Admission (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== LAB ORDERS =====
 CREATE TABLE Lab_Order (
     order_id SERIAL PRIMARY KEY,
     patient_id INTEGER REFERENCES Patient(patient_id),
@@ -347,7 +325,6 @@ CREATE TABLE Lab_Order_Test (
     result_date TIMESTAMP
 );
 
--- ===== BILLING =====
 CREATE TABLE Bill (
     bill_id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES Patient(patient_id) ON DELETE CASCADE,
@@ -371,7 +348,6 @@ CREATE TABLE Bill_Item (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ===== SESSION MANAGEMENT =====
 CREATE TABLE session (
     sid VARCHAR NOT NULL COLLATE "default",
     sess JSON NOT NULL,
@@ -385,7 +361,6 @@ CREATE INDEX IDX_session_expire ON session (expire);
 -- STORED PROCEDURES
 -- ========================================
 
--- 1. Stored Procedure: Admit Patient to Bed
 CREATE OR REPLACE FUNCTION sp_admit_patient_to_bed(
     p_patient_id INT,
     p_bed_id INT,
@@ -400,7 +375,6 @@ DECLARE
     v_bed_status VARCHAR(20);
     v_new_admission_id INT;
 BEGIN
-    -- Check if bed is available
     SELECT status INTO v_bed_status FROM Bed WHERE bed_id = p_bed_id;
     
     IF v_bed_status IS NULL THEN
@@ -413,22 +387,17 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Create admission record
     INSERT INTO IPD_Admission (patient_id, bed_id, doctor_id, admission_reason, admission_date, admission_time, status)
     VALUES (p_patient_id, p_bed_id, p_doctor_id, p_admission_reason, CURRENT_DATE, CURRENT_TIME, 'active')
     RETURNING IPD_Admission.admission_id INTO v_new_admission_id;
     
-    -- Update bed status
     UPDATE Bed SET status = 'occupied', current_patient_id = p_patient_id WHERE bed_id = p_bed_id;
-    
-    -- Update patient admission date
     UPDATE Patient SET date_admission = CURRENT_DATE WHERE patient_id = p_patient_id;
     
     RETURN QUERY SELECT v_new_admission_id, 'Patient admitted successfully'::TEXT, TRUE;
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Stored Procedure: Discharge Patient
 CREATE OR REPLACE FUNCTION sp_discharge_patient(
     p_admission_id INT,
     p_discharge_summary TEXT
@@ -440,7 +409,6 @@ DECLARE
     v_bed_id INT;
     v_patient_id INT;
 BEGIN
-    -- Get bed and patient info
     SELECT bed_id, patient_id INTO v_bed_id, v_patient_id 
     FROM IPD_Admission WHERE admission_id = p_admission_id;
     
@@ -449,7 +417,6 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Update admission record
     UPDATE IPD_Admission 
     SET discharge_date = CURRENT_DATE, 
         discharge_time = CURRENT_TIME, 
@@ -457,17 +424,13 @@ BEGIN
         status = 'discharged'
     WHERE admission_id = p_admission_id;
     
-    -- Free the bed
     UPDATE Bed SET status = 'available', current_patient_id = NULL WHERE bed_id = v_bed_id;
-    
-    -- Update patient discharge date
     UPDATE Patient SET date_discharge = CURRENT_DATE WHERE patient_id = v_patient_id;
     
     RETURN QUERY SELECT 'Patient discharged successfully'::TEXT, TRUE;
 END;
 $$ LANGUAGE plpgsql;
 
--- 3. Stored Procedure: Update Inventory Stock
 CREATE OR REPLACE FUNCTION sp_update_inventory_stock(
     p_item_id INT,
     p_quantity_change INT,
@@ -483,7 +446,6 @@ DECLARE
     v_current_quantity INT;
     v_new_quantity INT;
 BEGIN
-    -- Get current quantity
     SELECT quantity_in_stock INTO v_current_quantity FROM Medical_Inventory WHERE item_id = p_item_id;
     
     IF v_current_quantity IS NULL THEN
@@ -491,7 +453,6 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Calculate new quantity
     v_new_quantity := v_current_quantity + p_quantity_change;
     
     IF v_new_quantity < 0 THEN
@@ -499,10 +460,8 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Update inventory
     UPDATE Medical_Inventory SET quantity_in_stock = v_new_quantity WHERE item_id = p_item_id;
     
-    -- Log transaction
     INSERT INTO Inventory_Transaction (item_id, transaction_type, quantity_changed, quantity_before, quantity_after, reason, performed_by)
     VALUES (p_item_id, p_transaction_type, p_quantity_change, v_current_quantity, v_new_quantity, p_reason, p_performed_by);
     
@@ -510,7 +469,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4. Stored Procedure: Assign Nurse to Ward Schedule
 CREATE OR REPLACE FUNCTION sp_assign_nurse_to_ward(
     p_nurse_id INT,
     p_ward_id INT,
@@ -524,7 +482,6 @@ CREATE OR REPLACE FUNCTION sp_assign_nurse_to_ward(
 DECLARE
     v_schedule_id INT;
 BEGIN
-    -- Check for overlapping schedules
     IF EXISTS (
         SELECT 1 FROM Nurse_Ward_Schedule 
         WHERE nurse_id = p_nurse_id 
@@ -537,7 +494,6 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Create schedule
     INSERT INTO Nurse_Ward_Schedule (nurse_id, ward_id, week_start, week_end)
     VALUES (p_nurse_id, p_ward_id, p_week_start, p_week_end)
     RETURNING Nurse_Ward_Schedule.schedule_id INTO v_schedule_id;
@@ -546,7 +502,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5. Stored Procedure: Assign Doctor to Ward Schedule
 CREATE OR REPLACE FUNCTION sp_assign_doctor_to_ward(
     p_doctor_id INT,
     p_ward_id INT,
@@ -560,7 +515,6 @@ CREATE OR REPLACE FUNCTION sp_assign_doctor_to_ward(
 DECLARE
     v_schedule_id INT;
 BEGIN
-    -- Check for overlapping schedules
     IF EXISTS (
         SELECT 1 FROM Doctor_Ward_Schedule 
         WHERE doctor_id = p_doctor_id 
@@ -573,7 +527,6 @@ BEGIN
         RETURN;
     END IF;
     
-    -- Create schedule
     INSERT INTO Doctor_Ward_Schedule (doctor_id, ward_id, week_start, week_end)
     VALUES (p_doctor_id, p_ward_id, p_week_start, p_week_end)
     RETURNING Doctor_Ward_Schedule.schedule_id INTO v_schedule_id;
@@ -583,10 +536,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ========================================
--- TRIGGERS WITH STORED PROCEDURES
+-- TRIGGERS
 -- ========================================
 
--- Trigger 1: Auto-update inventory status
 CREATE OR REPLACE FUNCTION update_inventory_status()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -609,7 +561,6 @@ BEFORE INSERT OR UPDATE ON Medical_Inventory
 FOR EACH ROW
 EXECUTE FUNCTION update_inventory_status();
 
--- Trigger 2: Auto-update medical record timestamp
 CREATE OR REPLACE FUNCTION update_medical_record_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -623,11 +574,9 @@ BEFORE UPDATE ON Medical_Record
 FOR EACH ROW
 EXECUTE FUNCTION update_medical_record_timestamp();
 
--- Trigger 3: Auto-create task when medical record is created
 CREATE OR REPLACE FUNCTION create_task_on_medical_record()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Auto-create a REVIEW_REPORT task for nurses
     INSERT INTO Task (record_id, patient_id, doctor_id, task_type, priority, status, notes)
     VALUES (
         NEW.record_id, 
@@ -647,7 +596,6 @@ AFTER INSERT ON Medical_Record
 FOR EACH ROW
 EXECUTE FUNCTION create_task_on_medical_record();
 
--- Trigger 4: Prevent bed double-booking
 CREATE OR REPLACE FUNCTION prevent_bed_double_booking()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -663,13 +611,14 @@ BEFORE UPDATE ON Bed
 FOR EACH ROW
 EXECUTE FUNCTION prevent_bed_double_booking();
 
--- ===== DEFAULT DATA =====
+-- ========================================
+-- ESSENTIAL DEFAULT DATA ONLY
+-- ========================================
 
--- Admin
-INSERT INTO Admin (admin_id, password)
-VALUES ('admin123', '123456');
+-- Admin account (required for first login)
+INSERT INTO Admin (admin_id, password) VALUES ('admin123', '123456');
 
--- Wards
+-- Wards (required for hospital operations)
 INSERT INTO Ward (name, category, location, capacity, bed_capacity) VALUES
 ('General Ward', 'General', 'Ground Floor', 20, 20),
 ('ICU', 'Critical Care', 'First Floor', 10, 10),
@@ -677,84 +626,16 @@ INSERT INTO Ward (name, category, location, capacity, bed_capacity) VALUES
 ('Emergency Ward', 'Emergency', 'Ground Floor', 8, 8),
 ('Maternity Ward', 'Maternity', 'Third Floor', 12, 12);
 
--- Beds
+-- Beds (required for admissions)
 INSERT INTO Bed (ward_id, bed_number, status) VALUES
 (1, 'G-001', 'available'), (1, 'G-002', 'available'), (1, 'G-003', 'available'),
 (1, 'G-004', 'available'), (1, 'G-005', 'available'),
 (2, 'ICU-001', 'available'), (2, 'ICU-002', 'available'), (2, 'ICU-003', 'available'),
 (3, 'P-001', 'available'), (3, 'P-002', 'available'), (3, 'P-003', 'available');
 
--- Patients
-INSERT INTO Patient (name, age, gender, contact, address, emergency_contact, blood_type, is_serious_case) VALUES
-('Rajesh Kumar', 45, 'Male', '9876543210', 'Delhi', '9876543211', 'O+', FALSE),
-('Priya Sharma', 32, 'Female', '9876543220', 'Mumbai', '9876543221', 'A+', TRUE),
-('Amit Patel', 28, 'Male', '9876543230', 'Bangalore', '9876543231', 'B+', FALSE),
-('Sunita Rao', 55, 'Female', '9876543240', 'Chennai', '9876543241', 'AB+', FALSE),
-('Vikram Singh', 38, 'Male', '9876543250', 'Pune', '9876543251', 'O-', FALSE);
-
--- Doctors
-INSERT INTO Doctor (email, password, name, specialization, contact) VALUES
-('dr.sharma@hospital.com', '123456', 'Dr. Anjali Sharma', 'Cardiologist', '9876543260'),
-('dr.patel@hospital.com', '123456', 'Dr. Rajesh Patel', 'Pediatrician', '9876543270'),
-('dr.singh@hospital.com', '123456', 'Dr. Vikram Singh', 'General Physician', '9876543280');
-
--- Nurses
-INSERT INTO Nurse (email, password, name, contact) VALUES
-('nurse.rita@hospital.com', '123456', 'Rita Verma', '9876543290'),
-('nurse.priya@hospital.com', '123456', 'Priya Nair', '9876543300'),
-('nurse.anjali@hospital.com', '123456', 'Anjali Desai', '9876543310');
-
--- Ward Assignments
-INSERT INTO Ward_Nurse (ward_id, nurse_id, start_date) VALUES
-(1, 1, CURRENT_DATE),
-(2, 2, CURRENT_DATE),
-(3, 3, CURRENT_DATE);
-
--- Appointments
-INSERT INTO Appointment (patient_id, doctor_id, appointment_date, time_slot, reason, status) VALUES
-(1, 1, CURRENT_DATE, '09:00:00', 'Chest pain and breathing difficulty', 'scheduled'),
-(2, 1, CURRENT_DATE, '10:30:00', 'Follow-up cardiac consultation', 'scheduled'),
-(3, 2, CURRENT_DATE, '14:00:00', 'Child vaccination and checkup', 'scheduled'),
-(4, 3, CURRENT_DATE, '15:30:00', 'General health checkup', 'scheduled'),
-(5, 3, CURRENT_DATE, '16:00:00', 'Fever and body ache', 'scheduled');
-
--- Medical Records
-INSERT INTO Medical_Record (patient_id, doctor_id, appointment_id, visit_date, diagnosis, prescription, notes) VALUES
-(1, 1, 1, CURRENT_DATE, 'Acute chest pain - suspected angina', 'Nitroglycerin 0.4mg sublingual PRN, Aspirin 81mg daily', '{"chief_complaint": "Chest pain", "bp": "150/95", "heart_rate": "95"}'),
-(2, 1, 2, CURRENT_DATE, 'Atrial fibrillation - controlled', 'Warfarin 5mg daily, Metoprolol 50mg BID', '{"chief_complaint": "Palpitations", "bp": "135/85", "heart_rate": "88"}'),
-(3, 2, 3, CURRENT_DATE, 'Routine pediatric checkup - healthy', 'Vitamin D drops 400 IU daily', '{"weight": "18kg", "height": "110cm", "vaccines": "up to date"}'),
-(4, 3, 4, CURRENT_DATE, 'Hypertension - newly diagnosed', 'Amlodipine 5mg daily, lifestyle modifications', '{"bp": "160/100", "BMI": "28.5"}'),
-(5, 3, 5, CURRENT_DATE, 'Viral fever - acute', 'Paracetamol 500mg TID, adequate hydration', '{"temperature": "101.5F", "throat": "inflamed"}');
-
--- Medical Inventory
-INSERT INTO Medical_Inventory (item_name, item_category, item_type, description, manufacturer, unit_of_measure, quantity_in_stock, reorder_level, unit_price, expiry_date, batch_number, storage_location) VALUES
-('Paracetamol 500mg', 'Medicine', 'Painkiller', 'Fever and pain relief', 'Cipla', 'Tablets', 500, 100, 2.50, '2026-12-31', 'PARA2024A', 'Pharmacy'),
-('Amoxicillin 250mg', 'Medicine', 'Antibiotic', 'Bacterial infection treatment', 'Sun Pharma', 'Capsules', 300, 50, 8.00, '2026-06-30', 'AMOX2024B', 'Pharmacy'),
-('Vitamin C 500mg', 'Medicine', 'Vitamin', 'Immune system support', 'Himalaya', 'Tablets', 400, 80, 5.00, '2027-01-15', 'VITC2024C', 'Pharmacy'),
-('Normal Saline IV 500ml', 'Injection', 'IV Fluid', 'Intravenous fluid replacement', 'B. Braun', 'Bottles', 200, 50, 45.00, '2027-03-15', 'NS2024D', 'Ward Storage'),
-('Surgical Gloves (Large)', 'Surgical Equipment', 'PPE', 'Sterile latex gloves', '3M', 'Boxes', 150, 30, 120.00, NULL, 'SG2024G', 'Surgery Storage');
-
--- Lab Technicians
-INSERT INTO Lab_Technician (name, email, password, phone, specialization) VALUES
-('Rohit Singh', 'lab@test.com', '123456', '1234567890', 'Clinical Pathology'),
-('Priya Sharma', 'lab1@hospital.com', 'lab123', '9876543210', 'Hematology'),
-('Amit Kumar', 'lab2@hospital.com', 'lab123', '9876543211', 'Biochemistry');
-
--- Lab Test Catalog
-INSERT INTO Lab_Test_Catalog (test_name, test_category, normal_range, unit, cost, is_active) VALUES
-('Complete Blood Count (CBC)', 'Blood', 'WBC: 4-11', '10^9/L', 300.00, TRUE),
-('Hemoglobin', 'Blood', '13.5-17.5', 'g/dL', 150.00, TRUE),
-('Fasting Blood Sugar', 'Blood Glucose', '70-100', 'mg/dL', 100.00, TRUE),
-('Total Cholesterol', 'Lipid', '<200', 'mg/dL', 250.00, TRUE),
-('Liver Function Test', 'Liver', 'ALT: 7-56', 'U/L', 700.00, TRUE),
-('Kidney Function Test', 'Kidney', 'Creatinine: 0.7-1.3', 'mg/dL', 650.00, TRUE),
-('Thyroid Profile', 'Thyroid', 'TSH: 0.4-4.0', 'mIU/L', 800.00, TRUE),
-('Urine Routine', 'Urine', 'pH: 4.5-8', '', 150.00, TRUE),
-('COVID-19 RT-PCR', 'Infectious Disease', 'Negative', '', 1500.00, TRUE),
-('Dengue Test', 'Infectious Disease', 'Negative', '', 600.00, TRUE);
-
+-- Success messages
 SELECT '✅ DATABASE SETUP COMPLETE!' as status;
 SELECT '🏥 All tables created successfully!' as message;
 SELECT '⚙️ 5 Stored Procedures added!' as stored_procedures;
 SELECT '🔔 4 Triggers with automation active!' as triggers;
-SELECT '✅ Nurse and Doctor Ward Schedules ready!' as schedules;
+SELECT '🛏️ Wards and Beds ready for use!' as infrastructure;
