@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api';
-import Navbar from '../components/Navbar';
-
-import AdmitPatientForm from '../components/AdmitPatientForm';
-import RecordVitalsForm from '../components/RecordVitalsForm';
-import NurseTaskDashboard from '../components/NurseTaskDashboard';
-
+import { useState, useEffect } from "react";
+import { api } from "../api";
+import Navbar from "../components/shared/Navbar";  // ✅ FIXED
+import AdmitPatientForm from "../components/forms/AdmitPatientForm";  // ✅ Already correct
+import RecordVitalsForm from "../components/forms/RecordVitalsForm";  // ✅ Already correct
+import NurseTaskDashboard from "../components/nurse/NurseTaskDashboard";  // ✅ Already correct
 
 function NurseDashboard({ user, setUser }) {
   const [stats, setStats] = useState({

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireRole } = require('../middleware/auth');
-const DoctorController = require('../controllers/doctor.controller');
+const DoctorController = require('../controllers/doctor.Controller');
 
 // ===== DASHBOARD =====
 router.get('/stats', requireRole('doctor'), DoctorController.getStats);

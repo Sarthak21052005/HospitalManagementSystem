@@ -10,7 +10,7 @@ import ReceptionPage from './pages/ReceptionPage';
 import StaffManagement from './pages/StaffManagement';
 import InventoryManagement from './pages/InventoryManagement';
 import WardAssignmentManagement from './pages/WardAssignmentMangement';
-import LoadingSpinner from './components/LoadingSpinner';
+import LoadingSpinner from './components/shared/LoadingSpinner';
 import BedManagement from './pages/BedMangement';
 import './styles/App.css';
 

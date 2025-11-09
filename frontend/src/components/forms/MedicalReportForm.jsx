@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api';
+import { api } from '../../api';
 
 function MedicalReportForm({ patient, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);

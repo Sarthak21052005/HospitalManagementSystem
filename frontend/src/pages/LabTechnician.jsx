@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
-import Navbar from '../components/Navbar';
+import Navbar from '../components/shared/Navbar';
 
 function LabTechnicianDashboard({ user, setUser }) {
   const [stats, setStats] = useState({ pending: 0, inProgress: 0, completedToday: 0 });

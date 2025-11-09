@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import Navbar from '../components/Navbar';
-import MedicalReportForm from '../components/MedicalReportForm';
-import CompletedLabReports from '../components/CompletedLabReports'; // ✅ NEW IMPORT
+import Navbar from '../components/shared/Navbar';
+import MedicalReportForm from '../components/forms/MedicalReportForm';
+import CompletedLabReports from '../components/lab/CompletedLabReports'; // ✅ NEW IMPORT
 
 
 function DoctorDashboard({ user, setUser }) {

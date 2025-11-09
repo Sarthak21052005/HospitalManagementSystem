@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api';
-import RecordVitalsForm from './RecordVitalsForm';
+import { api } from '../../api';
+import RecordVitalsForm from '../forms/RecordVitalsForm';
 
 function NurseTaskDashboard({ user, onTaskUpdate }) {
   const [tasks, setTasks] = useState([]);

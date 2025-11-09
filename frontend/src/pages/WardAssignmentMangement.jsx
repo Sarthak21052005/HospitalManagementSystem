@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import Navbar from '../components/Navbar';
+import Navbar from '../components/shared/Navbar';
 
 function WardAssignmentManagement({ user, setUser }) {
   const navigate = useNavigate();

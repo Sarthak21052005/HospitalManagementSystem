@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { api } from '../api';
+import { api } from '../../api';
 import { useState } from 'react';
 
 function Navbar({ user, setUser }) {

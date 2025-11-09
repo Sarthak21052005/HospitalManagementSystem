@@ -15,7 +15,8 @@ const adminRoutes = require('./routes/admin.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const nurseRoutes = require('./routes/nurse.routes');
-const labRoutes = require('./routes/lab.routes'); // ✅ ADDED LAB ROUTES
+const labRoutes = require('./routes/lab.routes'); 
+const scheduleRoutes = require('./routes/schedule.routes');
 const app = express();
 
 // ===== MIDDLEWARE =====
@@ -46,7 +47,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/admin/inventory', inventoryRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/nurse', nurseRoutes);
-app.use('/api/lab',labRoutes); // ✅ ADDED LAB ROUTES
+app.use('/api/lab',labRoutes);
+app.use('/api/schedule', scheduleRoutes);
 // app.use('/api/admin', wardAssignmentRoutes);
 // ===== ERROR HANDLERS =====
 app.use((req, res) => {
