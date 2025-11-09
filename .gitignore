@@ -19,10 +19,6 @@ coverage/
 .env.test.local
 .env.production.local
 
-# === Database dumps or SQL scripts (optional to ignore if you want to keep) ===
-*.sql
-*.sqlite
-
 # === Log files ===
 logs/
 *.log
