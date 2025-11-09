@@ -135,7 +135,7 @@ function LabReportModal({ report, onClose }) {
             >
               <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>Age / Gender</div>
               <div style={{ fontSize: '16px', fontWeight: '700' }}>
-                {report.age}y • {report.gender}
+                {report.patient_age}y • {report.patient_gender}
               </div>
             </div>
             <div

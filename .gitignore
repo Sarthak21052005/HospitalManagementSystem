@@ -19,6 +19,13 @@ coverage/
 .env.test.local
 .env.production.local
 
+<<<<<<< HEAD
+=======
+# # === Database dumps or SQL scripts (optional to ignore if you want to keep) ===
+# *.sql
+# *.sqlite
+
+>>>>>>> 77d5a44 (create report for already completed patient fix and optimize the pages for admin doctors and nurses dashboard)
 # === Log files ===
 logs/
 *.log

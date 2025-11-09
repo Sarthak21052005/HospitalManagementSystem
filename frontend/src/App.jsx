@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { api } from './api';
 import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/DashBoard';
-import DoctorDashboard from './pages/DoctorDashBoard';
-import NurseDashboard from './pages/NurseDashBoard';
+import Dashboard from './pages/admin/DashBoard';
+import DoctorDashboard from './pages/doctor/DoctorDashBoard';
+import NurseDashboard from './pages/nurse/NurseDashBoard';
 import LabTechnicianDashboard from './pages/LabTechnician';
 import ReceptionPage from './pages/ReceptionPage';
-import StaffManagement from './pages/StaffManagement';
-import InventoryManagement from './pages/InventoryManagement';
-import WardAssignmentManagement from './pages/WardAssignmentMangement';
+import StaffManagement from './pages/admin/staff/StaffManagement';
+import InventoryManagement from './pages/admin/inventory/InventoryManagement';
+import WardAssignmentManagement from './pages/admin/wards/WardAssignmentMangement';
 import LoadingSpinner from './components/shared/LoadingSpinner';
-import BedManagement from './pages/BedMangement';
+import BedManagement from './pages/admin/beds/BedMangement';
 import './styles/App.css';
 
 function App() {
