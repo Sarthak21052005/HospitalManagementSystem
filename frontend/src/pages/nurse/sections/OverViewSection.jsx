@@ -10,6 +10,17 @@ function OverviewSection({
 }) {
   return (
     <div>
+      {/* ✅ ADD THIS: Disable table row hover effects */}
+      <style>{`
+        .data-table tbody tr {
+          background: transparent !important;
+          transition: none !important;
+        }
+        .data-table tbody tr:hover {
+          background: transparent !important;
+        }
+      `}</style>
+
       {/* Stats Cards */}
       <div className="stats-grid">
         <div 
