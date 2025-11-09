@@ -5,7 +5,7 @@ import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/admin/DashBoard';
 import DoctorDashboard from './pages/doctor/DoctorDashBoard';
 import NurseDashboard from './pages/nurse/NurseDashBoard';
-import LabTechnicianDashboard from './pages/LabTechnician';
+import LabTechnicianDashboard from './pages/labtech/LabTechnician';
 import ReceptionPage from './pages/ReceptionPage';
 import StaffManagement from './pages/admin/staff/StaffManagement';
 import InventoryManagement from './pages/admin/inventory/InventoryManagement';

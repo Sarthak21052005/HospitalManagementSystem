@@ -1,5 +1,4 @@
 import { getStatusColor } from '../utils/BedHelpers';
-
 function BedsTableSection({ filteredBeds, handleUpdateBedStatus, handleDeleteBed }) {
   return (
     <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
