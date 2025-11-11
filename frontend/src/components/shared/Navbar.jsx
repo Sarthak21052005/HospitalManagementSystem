@@ -2,10 +2,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../../api';
 import { useState } from 'react';
 
+
 function Navbar({ user, setUser }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
 
   async function handleLogout() {
     try {
@@ -19,8 +21,10 @@ function Navbar({ user, setUser }) {
     }
   }
 
+
   // Check if a path is active
   const isActive = (path) => location.pathname === path;
+
 
   // Get role-specific color
   const getRoleColor = () => {
@@ -32,6 +36,7 @@ function Navbar({ user, setUser }) {
     }
   };
 
+
   // Get role display info
   const getRoleInfo = () => {
     switch (user.role) {
@@ -42,7 +47,9 @@ function Navbar({ user, setUser }) {
     }
   };
 
+
   const roleInfo = getRoleInfo();
+
 
   return (
     <>
@@ -56,6 +63,7 @@ function Navbar({ user, setUser }) {
           border-bottom: 3px solid ${getRoleColor()};
         }
 
+
         .nav-link {
           position: relative;
           transition: all 0.3s ease;
@@ -63,10 +71,12 @@ function Navbar({ user, setUser }) {
           padding: 10px 16px;
         }
 
+
         .nav-link:hover {
           background: rgba(102, 126, 234, 0.1);
           transform: translateY(-2px);
         }
+
 
         .nav-link.active {
           background: linear-gradient(135deg, ${getRoleColor()} 0%, ${getRoleColor()}dd 100%);
@@ -74,9 +84,11 @@ function Navbar({ user, setUser }) {
           font-weight: 600;
         }
 
+
         .nav-link.active:hover {
           background: linear-gradient(135deg, ${getRoleColor()}dd 0%, ${getRoleColor()} 100%);
         }
+
 
         .user-menu-dropdown {
           position: absolute;
@@ -93,11 +105,13 @@ function Navbar({ user, setUser }) {
           transition: all 0.3s ease;
         }
 
+
         .user-menu-dropdown.show {
           opacity: 1;
           visibility: visible;
           transform: translateY(0);
         }
+
 
         .user-menu-item {
           display: flex;
@@ -114,9 +128,11 @@ function Navbar({ user, setUser }) {
           font-size: 14px;
         }
 
+
         .user-menu-item:hover {
           background: #f8fafc;
         }
+
 
         .user-menu-divider {
           height: 1px;
@@ -124,23 +140,28 @@ function Navbar({ user, setUser }) {
           margin: 8px 0;
         }
 
+
         .logout-btn {
           color: #dc2626;
         }
 
+
         .logout-btn:hover {
           background: #fef2f2;
         }
+
 
         .user-avatar-clickable {
           cursor: pointer;
           transition: all 0.3s ease;
         }
 
+
         .user-avatar-clickable:hover {
           transform: scale(1.1);
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
+
 
         .notification-badge {
           position: absolute;
@@ -158,6 +179,7 @@ function Navbar({ user, setUser }) {
           font-weight: 700;
         }
 
+
         @keyframes pulse {
           0%, 100% {
             transform: scale(1);
@@ -167,10 +189,12 @@ function Navbar({ user, setUser }) {
           }
         }
 
+
         .pulse {
           animation: pulse 2s ease-in-out infinite;
         }
       `}</style>
+
 
       <nav className="navbar">
         <div className="nav-left">
@@ -197,13 +221,32 @@ function Navbar({ user, setUser }) {
                   onClick={() => navigate('/staff')} 
                   className={`nav-link ${isActive('/staff') ? 'active' : ''}`}
                 >
-                  👥 Staff Management
+                  👥 Staff
                 </button>
                 <button 
                   onClick={() => navigate('/inventory')} 
                   className={`nav-link ${isActive('/inventory') ? 'active' : ''}`}
                 >
-                  💊 Medical Inventory
+                  📦 Inventory
+                </button>
+                <button 
+                  onClick={() => navigate('/ward-assignments')} 
+                  className={`nav-link ${isActive('/ward-assignments') ? 'active' : ''}`}
+                >
+                  🏨 Ward Assignments
+                </button>
+                <button 
+                  onClick={() => navigate('/bed-management')} 
+                  className={`nav-link ${isActive('/bed-management') ? 'active' : ''}`}
+                >
+                  🛏️ Bed Management
+                </button>
+                {/* ✅ NEW - BILLING LINK */}
+                <button 
+                  onClick={() => navigate('/billing')} 
+                  className={`nav-link ${isActive('/billing') ? 'active' : ''}`}
+                >
+                  💰 Billing
                 </button>
               </>
             )}
@@ -281,6 +324,7 @@ function Navbar({ user, setUser }) {
               </svg>
             </div>
 
+
             {/* User Dropdown Menu */}
             <div className={`user-menu-dropdown ${showUserMenu ? 'show' : ''}`}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
@@ -291,6 +335,7 @@ function Navbar({ user, setUser }) {
                   {user.email || 'No email provided'}
                 </div>
               </div>
+
 
               <div style={{ padding: '8px 0' }}>
                 <button className="user-menu-item">
@@ -303,12 +348,14 @@ function Navbar({ user, setUser }) {
                   <span>Profile</span>
                 </button>
 
+
                 {user.role === 'doctor' && (
                   <button className="user-menu-item">
                     <span style={{ fontSize: '18px' }}>📅</span>
                     <span>My Schedule</span>
                   </button>
                 )}
+
 
                 <button className="user-menu-item">
                   <span style={{ fontSize: '18px' }}>🔔</span>
@@ -326,14 +373,18 @@ function Navbar({ user, setUser }) {
                   </span>
                 </button>
 
+
                 <div className="user-menu-divider"></div>
+
 
                 <button className="user-menu-item">
                   <span style={{ fontSize: '18px' }}>❓</span>
                   <span>Help & Support</span>
                 </button>
 
+
                 <div className="user-menu-divider"></div>
+
 
                 <button className="user-menu-item logout-btn" onClick={handleLogout}>
                   <span style={{ fontSize: '18px' }}>🚪</span>
@@ -344,6 +395,7 @@ function Navbar({ user, setUser }) {
           </div>
         </div>
       </nav>
+
 
       {/* Overlay to close menu when clicking outside */}
       {showUserMenu && (
@@ -362,5 +414,6 @@ function Navbar({ user, setUser }) {
     </>
   );
 }
+
 
 export default Navbar;

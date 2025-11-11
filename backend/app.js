@@ -17,6 +17,7 @@ const doctorRoutes = require('./routes/doctor.routes');
 const nurseRoutes = require('./routes/nurse.routes');
 const labRoutes = require('./routes/lab.routes'); 
 const scheduleRoutes = require('./routes/schedule.routes');
+const billingRoutes = require('./routes/billing.routes');
 const app = express();
 
 // ===== MIDDLEWARE =====
@@ -49,6 +50,7 @@ app.use('/api/doctor', doctorRoutes);
 app.use('/api/nurse', nurseRoutes);
 app.use('/api/lab',labRoutes);
 app.use('/api/schedule', scheduleRoutes);
+app.use('/api/billing', billingRoutes);
 // app.use('/api/admin', wardAssignmentRoutes);
 // ===== ERROR HANDLERS =====
 app.use((req, res) => {

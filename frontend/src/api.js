@@ -230,4 +230,74 @@ export const api = {
   
   // Get lab statistics
   getLabStats: () => request('/lab/stats'),
+  // In your api.js - ADD BILLING SECTION
+
+// ===== BILLING ROUTES =====
+// Dashboard stats
+getBillingStats: () => request('/billing/stats'),
+
+// Patient admission for billing
+getPatientAdmissionForBilling: (patientId) => 
+  request(`/billing/patient/${patientId}/admission`),
+
+// Calculate bill preview
+calculateBill: (admissionId, dischargeDate) => 
+  request('/billing/calculate', {
+    method: 'POST',
+    body: { admissionId, dischargeDate }
+  }),
+
+// Generate final bill
+generateBill: (admissionId, dischargeDate, discount, paymentMethod) => 
+  request('/billing/generate', {
+    method: 'POST',
+    body: { admissionId, dischargeDate, discount, paymentMethod }
+  }),
+
+// Get all bills
+getAllBills: (filters) => {
+  const query = new URLSearchParams(filters).toString();
+  return request(`/billing/bills${query ? '?' + query : ''}`);
+},
+
+// Get bill details
+getBillDetails: (billId) => request(`/billing/${billId}`),
+
+// Update bill
+updateBill: (billId, updates) => 
+  request(`/billing/${billId}`, {
+    method: 'PATCH',
+    body: updates
+  }),
+
+// Delete bill
+deleteBill: (billId) => 
+  request(`/billing/${billId}`, {
+    method: 'DELETE'
+  }),
+
+// Process payment
+processPayment: (billId, amount, paymentMethod, referenceNumber) => 
+  request(`/billing/${billId}/payment`, {
+    method: 'POST',
+    body: { amount, paymentMethod, referenceNumber }
+  }),
+
+// Update payment status
+updatePaymentStatus: (billId, status) => 
+  request(`/billing/${billId}/status`, {
+    method: 'PATCH',
+    body: { status }
+  }),
+
+// Get invoice
+getInvoice: (billId) => request(`/billing/${billId}/invoice`),
+
+// Get patient billing history
+getPatientBillingHistory: (patientId) => 
+  request(`/billing/patient/${patientId}/history`),
+
+// Get active admissions
+getActiveAdmissions: () => request('/billing/active-admissions'),
+
 };

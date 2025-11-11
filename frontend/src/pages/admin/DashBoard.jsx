@@ -93,6 +93,7 @@ function Dashboard({ user, setUser }) {
         <SystemStatusBanner />
       </div>
     </div>
+    
   );
 }
 

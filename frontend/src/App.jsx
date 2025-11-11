@@ -12,11 +12,14 @@ import InventoryManagement from './pages/admin/inventory/InventoryManagement';
 import WardAssignmentManagement from './pages/admin/wards/WardAssignmentMangement';
 import LoadingSpinner from './components/shared/LoadingSpinner';
 import BedManagement from './pages/admin/beds/BedMangement';
+import BillingDashboard from './pages/billing/BillingDashBoard';
 import './styles/App.css';
+
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     // ✅ Step 1: Mark this tab as active when app loads
@@ -37,6 +40,7 @@ function App() {
       }
     };
 
+
     // ✅ Step 3: Alternative method - using pagehide event (more reliable for tab close)
     const handlePageHide = (e) => {
       // If the page is being persisted (back/forward cache), don't logout
@@ -48,6 +52,7 @@ function App() {
       sessionStorage.removeItem('tabActive');
       navigator.sendBeacon('/api/auth/logout');
     };
+
 
     // ✅ Step 4: Check if session should be maintained on page load
     const handlePageShow = (e) => {
@@ -62,10 +67,12 @@ function App() {
       }
     };
 
+
     // Add all event listeners
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('pageshow', handlePageShow);
+
 
     // Cleanup: Remove all event listeners
     return () => {
@@ -74,6 +81,7 @@ function App() {
       window.removeEventListener('pageshow', handlePageShow);
     };
   }, []);
+
 
   async function checkSession() {
     try {
@@ -91,6 +99,7 @@ function App() {
     }
   }
 
+
   // Get default redirect route based on user role
   function getDefaultRoute() {
     if (!user) return '/';
@@ -101,7 +110,9 @@ function App() {
     return '/';
   }
 
+
   if (loading) return <LoadingSpinner />;
+
 
   return (
     <Routes>
@@ -163,6 +174,16 @@ function App() {
             : <Navigate to="/" />
         } 
       />
+
+      {/* 💰 ===== BILLING ROUTE (Only accessible by admin) ===== */}
+      <Route 
+        path="/billing" 
+        element={
+          user && user.role === 'admin' 
+            ? <BillingDashboard user={user} setUser={setUser} /> 
+            : <Navigate to="/" />
+        } 
+      />
       
       {/* ===== DOCTOR ROUTES (Only accessible by doctor) ===== */}
       <Route 
@@ -199,5 +220,6 @@ function App() {
     </Routes>
   );
 }
+
 
 export default App;

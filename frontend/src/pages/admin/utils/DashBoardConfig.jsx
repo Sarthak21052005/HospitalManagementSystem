@@ -6,6 +6,8 @@ export const navItems = [
   { id: 'inventory', label: 'Inventory', icon: '📦', path: '/inventory' },
   { id: 'wards', label: 'Ward Assignments', icon: '🏥', path: '/ward-assignments' },
   { id: 'beds', label: 'Bed Management', icon: '🛏️', path: '/bed-management' },
+  // ✅ ADD THIS - Billing Navigation Item
+  { id: 'billing', label: 'Billing', icon: '💰', path: '/billing' },
 ];
 
 export const getStatCards = (stats) => [
@@ -44,4 +46,6 @@ export const getQuickActions = (navigate) => [
   { label: 'Manage Inventory', icon: '📦', color: '#F59E0B', action: () => navigate('/inventory') },
   { label: 'Ward Assignments', icon: '🏥', color: '#EC4899', action: () => navigate('/ward-assignments') },
   { label: 'Bed Management', icon: '🛏️', color: '#6366F1', action: () => navigate('/bed-management') },
+  // ✅ ADD THIS - Billing Quick Action
+  { label: 'Billing & Payments', icon: '💰', color: '#DC2626', action: () => navigate('/billing') },
 ];
