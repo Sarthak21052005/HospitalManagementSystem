@@ -159,7 +159,7 @@ export const api = {
   // ✅ UPDATED: Changed to use eligible-for-admission endpoint
   getAvailablePatients: () => request('/nurse/patients/eligible-for-admission'),
   getEligiblePatients: () => request('/nurse/patients/eligible-for-admission'),
-  
+  getPendingBills: () => request('/billing/pending'),
   getAdmittedPatients: () => request('/nurse/patients/admitted'),
   createAdmission: (data) => request('/nurse/admissions', {
     method: 'POST',
@@ -231,73 +231,49 @@ export const api = {
   // Get lab statistics
   getLabStats: () => request('/lab/stats'),
   // In your api.js - ADD BILLING SECTION
+// BILLING - dashboard
+  getBillingStats: () => request('/billing/stats'),
+  getActiveAdmissions: () => request('/billing/active-admissions'),
+  getPendingBills: () => request('/billing/pending'),
+  getAllBills: (filters = {}) => {
+    const q = new URLSearchParams(filters).toString();
+    return request(`/billing/bills${q ? '?' + q : ''}`);
+  },
+  getBillDetails: (id) => request(`/billing/${id}`),
 
-// ===== BILLING ROUTES =====
-// Dashboard stats
-getBillingStats: () => request('/billing/stats'),
+  // IPD endpoints (server uses these)
+  calculateIPDBill: (admissionId, dischargeDate) => request('/billing/ipd/calculate', { method: 'POST', body: { admissionId, dischargeDate } }),
+  generateIPDBill: (admissionId, dischargeDate, discount, paymentMethod) => request('/billing/ipd/generate', { method: 'POST', body: { admissionId, dischargeDate, discount, paymentMethod } }),
 
-// Patient admission for billing
-getPatientAdmissionForBilling: (patientId) => 
-  request(`/billing/patient/${patientId}/admission`),
+  // OPD endpoints
+  calculateOPDBill: (patientId, options) => request('/billing/opd/calculate', { method: 'POST', body: { patientId, ...options } }),
+  generateOPDBill: (patientId, discount, paymentMethod) => request('/billing/opd/generate', { method: 'POST', body: { patientId, discount, paymentMethod } }),
 
-// Calculate bill preview
-calculateBill: (admissionId, dischargeDate) => 
-  request('/billing/calculate', {
-    method: 'POST',
-    body: { admissionId, dischargeDate }
-  }),
+  // Helper generic "calculate" and "generate" that picks IPD/OPD based on presence of admissionId
+  calculateBill: (admissionIdOrPatientId, dischargeDate = null) => {
+    // if object received
+    if (admissionIdOrPatientId && typeof admissionIdOrPatientId === 'object') {
+      // fallback usage
+      const { admissionId, patientId, dischargeDate: dd } = admissionIdOrPatientId;
+      return admissionId ? api.calculateIPDBill(admissionId, dd) : api.calculateOPDBill(patientId);
+    }
+    // guess: if dischargeDate provided treat as ipd else opd
+    if (dischargeDate !== null) {
+      return api.calculateIPDBill(admissionIdOrPatientId, dischargeDate);
+    }
+    return api.calculateOPDBill(admissionIdOrPatientId);
+  },
 
-// Generate final bill
-generateBill: (admissionId, dischargeDate, discount, paymentMethod) => 
-  request('/billing/generate', {
-    method: 'POST',
-    body: { admissionId, dischargeDate, discount, paymentMethod }
-  }),
+  generateBill: (admissionIdOrPatientId, dischargeDate = null, discount = 0, paymentMethod = 'cash') => {
+    if (dischargeDate !== null) {
+      return api.generateIPDBill(admissionIdOrPatientId, dischargeDate, discount, paymentMethod);
+    }
+    return api.generateOPDBill(admissionIdOrPatientId, discount, paymentMethod);
+  },
 
-// Get all bills
-getAllBills: (filters) => {
-  const query = new URLSearchParams(filters).toString();
-  return request(`/billing/bills${query ? '?' + query : ''}`);
-},
-
-// Get bill details
-getBillDetails: (billId) => request(`/billing/${billId}`),
-
-// Update bill
-updateBill: (billId, updates) => 
-  request(`/billing/${billId}`, {
-    method: 'PATCH',
-    body: updates
-  }),
-
-// Delete bill
-deleteBill: (billId) => 
-  request(`/billing/${billId}`, {
-    method: 'DELETE'
-  }),
-
-// Process payment
-processPayment: (billId, amount, paymentMethod, referenceNumber) => 
-  request(`/billing/${billId}/payment`, {
-    method: 'POST',
-    body: { amount, paymentMethod, referenceNumber }
-  }),
-
-// Update payment status
-updatePaymentStatus: (billId, status) => 
-  request(`/billing/${billId}/status`, {
-    method: 'PATCH',
-    body: { status }
-  }),
-
-// Get invoice
-getInvoice: (billId) => request(`/billing/${billId}/invoice`),
-
-// Get patient billing history
-getPatientBillingHistory: (patientId) => 
-  request(`/billing/patient/${patientId}/history`),
-
-// Get active admissions
-getActiveAdmissions: () => request('/billing/active-admissions'),
-
+  // Payments
+  processPayment: (billId, amount, paymentMethod, referenceNumber) => request(`/billing/${billId}/payment`, { method: 'POST', body: { amount, paymentMethod, referenceNumber } }),
+  updatePaymentStatus: (billId, status) => request(`/billing/${billId}/status`, { method: 'PATCH', body: { status } }),
+  getPatientBillingHistory: (patientId) => request(`/billing/patient/${patientId}/history`),
+  getInvoice: (billId) => request(`/billing/${billId}/invoice`),
 };

@@ -1,57 +1,95 @@
 // routes/billing.routes.js
-
 const express = require('express');
 const router = express.Router();
 const billingController = require('../controllers/billing.controller');
 const { requireRole } = require('../middleware/auth');
 
-// ===== BILLING DASHBOARD & STATS =====
+/* ================================
+   BILLING DASHBOARD & STATS
+================================ */
 router.get('/stats', requireRole('admin'), billingController.getBillingStats);
 
-// ===== ACTIVE ADMISSIONS (MUST BE BEFORE /:billId) =====
-// ⚠️ MOVED THIS UP - Specific routes BEFORE dynamic routes
+/* ================================
+   ACTIVE ADMISSIONS (IPD)
+================================ */
 router.get('/active-admissions', requireRole('admin'), billingController.getActiveAdmissions);
 
-// ===== PATIENT BILLING INFO =====
-// Get patient's admission details for billing
-router.get('/patient/:patientId/admission', requireRole('admin'), billingController.getPatientAdmissionForBilling);
-
-// Get patient's billing history
+/* ================================
+   PATIENT BILLING INFO
+================================ */
 router.get('/patient/:patientId/history', requireRole('admin'), billingController.getPatientBillingHistory);
 
-// ===== BILL CALCULATION =====
-// Calculate bill preview (before generating)
-router.post('/calculate', requireRole('admin'), billingController.calculateBill);
+/* ================================
+   IPD BILLING ROUTES
+================================ */
 
-// ===== BILL MANAGEMENT =====
-// Generate new bill
-router.post('/generate', requireRole('admin'), billingController.generateBill);
+// 1. Get admission info for IPD billing
+router.get(
+  '/patient/:patientId/admission',
+  requireRole('admin'),
+  billingController.getAdmissionForBilling
+);
 
-// Get all bills with filters
+// 2. IPD Bill preview
+router.post(
+  '/ipd/calculate',
+  requireRole('admin'),
+  billingController.calculateIPDBill
+);
+
+// 3. Generate final IPD Bill
+router.post(
+  '/ipd/generate',
+  requireRole('admin'),
+  billingController.generateIPDBill
+);
+
+/* ================================
+   OPD BILLING ROUTES
+================================ */
+
+// 1. OPD bill preview
+router.post(
+  '/opd/calculate',
+  requireRole('admin'),
+  billingController.calculateOPDBill
+);
+
+// 2. Generate final OPD bill
+router.post(
+  '/opd/generate',
+  requireRole('admin'),
+  billingController.generateOPDBill
+);
+
+/* ================================
+   BILL LISTING & DETAILS
+================================ */
+
+// Get all bills
 router.get('/bills', requireRole('admin'), billingController.getAllBills);
 
-// ⚠️ IMPORTANT: This MUST come AFTER all specific routes like /active-admissions
-// Get specific bill details
+// Get pending bills
+router.get('/pending', requireRole('admin'), billingController.getPendingBills);
+
+// Get bill details (must be AFTER all specific routes)
 router.get('/:billId', requireRole('admin'), billingController.getBillDetails);
 
-// Update bill
+/* ================================
+   BILL UPDATE / DELETE
+================================ */
 router.patch('/:billId', requireRole('admin'), billingController.updateBill);
-
-// Delete bill (soft delete)
 router.delete('/:billId', requireRole('admin'), billingController.deleteBill);
 
-// ===== PAYMENT PROCESSING =====
-// Process payment
+/* ================================
+   PAYMENT PROCESSING
+================================ */
 router.post('/:billId/payment', requireRole('admin'), billingController.processPayment);
-
-// Update payment status
 router.patch('/:billId/status', requireRole('admin'), billingController.updatePaymentStatus);
 
-// ===== INVOICE =====
-// Get invoice for printing
+/* ================================
+   INVOICE
+================================ */
 router.get('/:billId/invoice', requireRole('admin'), billingController.getInvoice);
-
-// ✅ NEW: Get pending bills (partial + pending)
-router.get('/pending', billingController.getPendingBills);
 
 module.exports = router;
