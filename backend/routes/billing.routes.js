@@ -51,4 +51,7 @@ router.patch('/:billId/status', requireRole('admin'), billingController.updatePa
 // Get invoice for printing
 router.get('/:billId/invoice', requireRole('admin'), billingController.getInvoice);
 
+// ✅ NEW: Get pending bills (partial + pending)
+router.get('/pending', billingController.getPendingBills);
+
 module.exports = router;

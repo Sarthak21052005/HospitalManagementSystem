@@ -139,149 +139,131 @@ class DoctorService {
     };
   }
 
-  // ===== CREATE MEDICAL REPORT (WITH LAB TESTS) =====
   static async createMedicalReport(doctorId, reportData) {
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
 
-      const {
+    const {
+      patient_id,
+      chief_complaint,
+      symptoms,
+      final_diagnosis,
+      prescription,
+      follow_up_date,
+      notes,
+      requires_lab_tests,
+      lab_tests,
+      lab_urgency,
+      lab_notes
+    } = reportData;
+
+    // Validation
+    if (!patient_id || !chief_complaint) {
+      throw new Error('VALIDATION_ERROR: Patient ID and chief complaint are required');
+    }
+
+    // Get patient details
+    const patientResult = await client.query(
+      'SELECT * FROM Patient WHERE patient_id = $1',
+      [patient_id]
+    );
+    
+    if (patientResult.rows.length === 0) {
+      throw new Error('PATIENT_NOT_FOUND');
+    }
+
+    const patient = patientResult.rows[0];
+
+    // STEP 1: Create medical record
+    const medicalRecordResult = await client.query(`
+      INSERT INTO Medical_Record (
         patient_id,
-        chief_complaint,
-        symptoms,
-        final_diagnosis,
+        doctor_id,
+        diagnosis,
         prescription,
         follow_up_date,
         notes,
-        requires_lab_tests,
-        lab_tests,
-        lab_urgency,
-        lab_notes
-      } = reportData;
+        visit_date
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, CURRENT_TIMESTAMP)
+      RETURNING record_id
+    `, [
+      patient_id,
+      doctorId,
+      final_diagnosis || '',
+      prescription || '',
+      follow_up_date || null,
+      JSON.stringify({
+        chief_complaint,
+        symptoms: symptoms || '',
+        final_diagnosis: final_diagnosis || '',
+        additional_notes: notes || '',
+        lab_tests_required: requires_lab_tests || false
+      })
+    ]);
 
-      // Validation
-      if (!patient_id || !chief_complaint) {
-        throw new Error('VALIDATION_ERROR: Patient ID and chief complaint are required');
-      }
+    const recordId = medicalRecordResult.rows[0].record_id;
 
-      // Get patient details
-      const patientResult = await client.query(
-        'SELECT * FROM Patient WHERE patient_id = $1',
-        [patient_id]
-      );
-      
-      if (patientResult.rows.length === 0) {
-        throw new Error('PATIENT_NOT_FOUND');
-      }
+    // ✅ Task is automatically created by database trigger - no manual insertion needed
+    console.log(`✅ Medical record ${recordId} created for patient ${patient.name}`);
+    console.log(`✅ Task auto-created by trigger with priority: ${patient.is_serious_case ? 'URGENT' : 'ROUTINE'}`);
 
-      const patient = patientResult.rows[0];
-
-      // STEP 1: Create medical record
-      const medicalRecordResult = await client.query(`
-        INSERT INTO Medical_Record (
-          patient_id,
-          doctor_id,
-          diagnosis,
-          prescription,
-          follow_up_date,
-          notes,
-          visit_date
-        )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, CURRENT_TIMESTAMP)
-        RETURNING record_id
-      `, [
-        patient_id,
-        doctorId,
-        final_diagnosis || '',
-        prescription || '',
-        follow_up_date || null,
-        JSON.stringify({
-          chief_complaint,
-          symptoms: symptoms || '',
-          final_diagnosis: final_diagnosis || '',
-          additional_notes: notes || '',
-          lab_tests_required: requires_lab_tests || false
-        })
-      ]);
-
-      const recordId = medicalRecordResult.rows[0].record_id;
-
-      // STEP 2: Create Nurse Task (ALWAYS)
-      const taskPriority = patient.is_serious_case ? 'URGENT' : 'ROUTINE';
-      const taskNotes = final_diagnosis
-        ? `Medical report completed: ${final_diagnosis}. Please record vital signs.`
-        : `Medical report completed for ${patient.name}. Please record vital signs.`;
-
-      await client.query(`
-        INSERT INTO Nurse_Task (
+    // STEP 2: Create Lab Order (ONLY if checkbox is ticked)
+    let labOrderCreated = false;
+    if (requires_lab_tests === true && lab_tests && lab_tests.length > 0) {
+      const labOrderResult = await client.query(`
+        INSERT INTO Lab_Order (
           patient_id,
           doctor_id,
           record_id,
-          priority,
+          urgency,
           status,
-          notes
+          clinical_notes
         )
         VALUES ($1, $2, $3, $4, 'PENDING', $5)
+        RETURNING order_id
       `, [
         patient_id,
         doctorId,
         recordId,
-        taskPriority,
-        taskNotes
+        lab_urgency || 'ROUTINE',
+        lab_notes || `Lab tests ordered for diagnosis: ${final_diagnosis || 'examination'}`
       ]);
 
-      // STEP 3: Create Lab Order (ONLY if checkbox is ticked)
-      let labOrderCreated = false;
-      if (requires_lab_tests === true && lab_tests && lab_tests.length > 0) {
-        const labOrderResult = await client.query(`
-          INSERT INTO Lab_Order (
-            patient_id,
-            doctor_id,
-            record_id,
-            urgency,
-            status,
-            clinical_notes
-          )
-          VALUES ($1, $2, $3, $4, 'PENDING', $5)
-          RETURNING order_id
-        `, [
-          patient_id,
-          doctorId,
-          recordId,
-          lab_urgency || 'ROUTINE',
-          lab_notes || `Lab tests ordered for diagnosis: ${final_diagnosis || 'examination'}`
-        ]);
+      const orderId = labOrderResult.rows[0].order_id;
 
-        const orderId = labOrderResult.rows[0].order_id;
-
-        // Add individual tests to the order
-        for (const testId of lab_tests) {
-          await client.query(`
-            INSERT INTO Lab_Order_Test (order_id, test_id)
-            VALUES ($1, $2)
-          `, [orderId, testId]);
-        }
-
-        labOrderCreated = true;
+      // Add individual tests to the order
+      for (const testId of lab_tests) {
+        await client.query(`
+          INSERT INTO Lab_Order_Test (order_id, test_id)
+          VALUES ($1, $2)
+        `, [orderId, testId]);
       }
 
-      await client.query('COMMIT');
-
-      return {
-        success: true,
-        record_id: recordId,
-        nurse_task_created: true,
-        lab_order_created: labOrderCreated
-      };
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+      labOrderCreated = true;
+      console.log(`✅ Lab order created with ${lab_tests.length} tests`);
     }
+
+    await client.query('COMMIT');
+
+    return {
+      success: true,
+      record_id: recordId,
+      task_created_by_trigger: true,
+      lab_order_created: labOrderCreated
+    };
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error creating medical report:', error);
+    throw error;
+  } finally {
+    client.release();
   }
+}
+
 
   // ===== GET PATIENT REPORTS =====
   static async getPatientReports(patientId) {
@@ -312,9 +294,10 @@ class DoctorService {
         item_category,
         quantity_in_stock,
         unit_of_measure,
-        reorder_level
+        reorder_level,
+        unit_price
       FROM Medical_Inventory
-      WHERE item_category = 'Medicine'
+      WHERE item_category IN ('Medicine', 'Injection')
       AND quantity_in_stock > 0
       ORDER BY item_name
     `);
@@ -329,64 +312,100 @@ class DoctorService {
     try {
       await client.query('BEGIN');
 
-      const { record_id, medicines } = prescriptionData;
+      const { record_id, patient_id, medicines } = prescriptionData;
+
+      // Get record to verify it exists
+      const recordCheck = await client.query(
+        'SELECT patient_id FROM Medical_Record WHERE record_id = $1',
+        [record_id]
+      );
+
+      if (recordCheck.rows.length === 0) {
+        throw new Error('MEDICAL_RECORD_NOT_FOUND');
+      }
+
+      const recordPatientId = patient_id || recordCheck.rows[0].patient_id;
 
       for (const med of medicines) {
-        // Check stock
-        const stockCheck = await client.query(
-          'SELECT quantity_in_stock, item_name FROM Medical_Inventory WHERE item_id = $1',
-          [med.item_id]
-        );
+        // Check stock if item_id provided
+        let itemName = med.medicine_name;
+        let currentStock = null;
 
-        if (stockCheck.rows.length === 0) {
-          throw new Error(`MEDICINE_NOT_FOUND: ${med.medicine_name}`);
+        if (med.item_id) {
+          const stockCheck = await client.query(
+            'SELECT quantity_in_stock, item_name FROM Medical_Inventory WHERE item_id = $1',
+            [med.item_id]
+          );
+
+          if (stockCheck.rows.length === 0) {
+            throw new Error(`MEDICINE_NOT_FOUND: ${med.medicine_name}`);
+          }
+
+          currentStock = stockCheck.rows[0].quantity_in_stock;
+          itemName = stockCheck.rows[0].item_name;
+
+          if (currentStock < med.quantity) {
+            throw new Error(`INSUFFICIENT_STOCK: ${itemName}. Available: ${currentStock}, Required: ${med.quantity}`);
+          }
         }
 
-        const currentStock = stockCheck.rows[0].quantity_in_stock;
-        const itemName = stockCheck.rows[0].item_name;
-
-        if (currentStock < med.quantity) {
-          throw new Error(`INSUFFICIENT_STOCK: ${itemName}. Available: ${currentStock}, Required: ${med.quantity}`);
-        }
-
-        // Insert prescription
+        // ✅ FIXED: Insert into Prescription table (not Prescription_Item)
         await client.query(`
-          INSERT INTO Prescription_Item
-          (record_id, item_id, medicine_name, dosage, frequency, duration, quantity_prescribed, instructions)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          INSERT INTO Prescription (
+            record_id,
+            patient_id,
+            doctor_id,
+            medicine_name,
+            dosage,
+            frequency,
+            duration,
+            quantity_prescribed,
+            instructions
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           record_id,
-          med.item_id,
-          med.medicine_name,
+          recordPatientId,
+          doctorId,
+          itemName,
           med.dosage,
           med.frequency,
           med.duration,
           med.quantity,
-          med.instructions
+          med.instructions || ''
         ]);
 
-        // Deduct from inventory
-        await client.query(`
-          UPDATE Medical_Inventory
-          SET quantity_in_stock = quantity_in_stock - $1
-          WHERE item_id = $2
-        `, [med.quantity, med.item_id]);
+        // Deduct from inventory (only if item_id exists)
+        if (med.item_id && currentStock !== null) {
+          await client.query(`
+            UPDATE Medical_Inventory
+            SET quantity_in_stock = quantity_in_stock - $1
+            WHERE item_id = $2
+          `, [med.quantity, med.item_id]);
 
-        const newStock = currentStock - med.quantity;
+          const newStock = currentStock - med.quantity;
 
-        // Log transaction
-        await client.query(`
-          INSERT INTO Inventory_Transaction
-          (item_id, transaction_type, quantity_changed, quantity_before, quantity_after, reason, performed_by)
-          VALUES ($1, 'usage', $2, $3, $4, $5, $6)
-        `, [
-          med.item_id,
-          -med.quantity,
-          currentStock,
-          newStock,
-          `Prescribed to patient (Record ID: ${record_id})`,
-          doctorId
-        ]);
+          // Log transaction
+          await client.query(`
+            INSERT INTO Inventory_Transaction (
+              item_id,
+              transaction_type,
+              quantity_changed,
+              quantity_before,
+              quantity_after,
+              reason,
+              performed_by
+            )
+            VALUES ($1, 'usage', $2, $3, $4, $5, $6)
+          `, [
+            med.item_id,
+            -med.quantity,
+            currentStock,
+            newStock,
+            `Prescribed to patient (Record ID: ${record_id})`,
+            `Doctor ID: ${doctorId}`
+          ]);
+        }
       }
 
       await client.query('COMMIT');
@@ -410,10 +429,11 @@ class DoctorService {
         frequency,
         duration,
         quantity_prescribed,
-        instructions
-      FROM Prescription_Item
+        instructions,
+        prescribed_date
+      FROM Prescription
       WHERE record_id = $1
-      ORDER BY prescription_id
+      ORDER BY prescribed_date DESC
     `, [recordId]);
     
     return result.rows;
@@ -425,15 +445,23 @@ class DoctorService {
       SELECT
         lo.order_id,
         lo.completed_date,
+        lo.urgency,
+        lo.clinical_notes,
         p.patient_id,
         p.name AS patient_name,
         p.age AS patient_age,
+        p.gender,
         d.name AS doctor_name,
-        lo.status
+        lo.status,
+        mr.diagnosis,
+        COUNT(lot.id) as test_count
       FROM Lab_Order lo
       JOIN Patient p ON lo.patient_id = p.patient_id
       JOIN Doctor d ON lo.doctor_id = d.doctor_id
+      LEFT JOIN Medical_Record mr ON lo.record_id = mr.record_id
+      LEFT JOIN Lab_Order_Test lot ON lo.order_id = lot.order_id
       WHERE lo.status = 'COMPLETED' AND lo.doctor_id = $1
+      GROUP BY lo.order_id, p.patient_id, d.name, mr.diagnosis
       ORDER BY lo.completed_date DESC
     `, [doctorId]);
     
@@ -443,10 +471,21 @@ class DoctorService {
   // ===== GET LAB REPORT DETAILS =====
   static async getLabReportDetails(orderId) {
     const orderResult = await pool.query(`
-      SELECT lo.*, p.name as patient_name, d.name as doctor_name
+      SELECT 
+        lo.*,
+        p.name as patient_name,
+        p.age as patient_age,
+        p.gender as patient_gender,
+        p.blood_type,
+        d.name as doctor_name,
+        d.specialization,
+        lt.name as technician_name,
+        mr.diagnosis
       FROM Lab_Order lo
       JOIN Patient p ON lo.patient_id = p.patient_id
       JOIN Doctor d ON lo.doctor_id = d.doctor_id
+      LEFT JOIN Lab_Technician lt ON lo.technician_id = lt.technician_id
+      LEFT JOIN Medical_Record mr ON lo.record_id = mr.record_id
       WHERE lo.order_id = $1
     `, [orderId]);
 
@@ -455,7 +494,15 @@ class DoctorService {
     }
 
     const testsResult = await pool.query(`
-      SELECT lot.result_value, lot.is_abnormal, ltc.test_name, ltc.normal_range, ltc.unit
+      SELECT 
+        lot.result_value,
+        lot.is_abnormal,
+        lot.technician_notes,
+        lot.result_date,
+        ltc.test_name,
+        ltc.normal_range,
+        ltc.unit,
+        ltc.test_category
       FROM Lab_Order_Test lot
       JOIN Lab_Test_Catalog ltc ON lot.test_id = ltc.test_id
       WHERE lot.order_id = $1
@@ -466,6 +513,24 @@ class DoctorService {
     report.tests = testsResult.rows;
     
     return report;
+  }
+
+  // ===== GET LAB TEST CATALOG =====
+  static async getLabTestCatalog() {
+    const result = await pool.query(`
+      SELECT
+        test_id,
+        test_name,
+        test_category,
+        normal_range,
+        unit,
+        cost
+      FROM Lab_Test_Catalog
+      WHERE is_active = TRUE
+      ORDER BY test_category, test_name
+    `);
+    
+    return result.rows;
   }
 }
 

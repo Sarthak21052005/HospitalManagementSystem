@@ -341,7 +341,7 @@ class NurseService {
       blood_pressure || null,
       pulse_rate || null,
       respiratory_rate || null,
-      oxygen_saturation || null,
+      oxygen_saturation || null,  // ✅ This will work after ALTER TABLE
       notes || null
     ]);
     
@@ -350,10 +350,16 @@ class NurseService {
 
   static async getPatientVitalSigns(patientId) {
     const result = await pool.query(`
-      SELECT record_id, visit_date, notes, diagnosis
-      FROM Medical_Record
-      WHERE patient_id = $1
-      ORDER BY visit_date DESC, record_id DESC
+      SELECT 
+        vs.*,
+        n.name as nurse_name,
+        mr.diagnosis,
+        mr.visit_date
+      FROM Vital_Signs vs
+      JOIN Nurse n ON vs.nurse_id = n.nurse_id
+      LEFT JOIN Medical_Record mr ON vs.record_id = mr.record_id
+      WHERE vs.patient_id = $1
+      ORDER BY vs.recorded_at DESC
       LIMIT 20
     `, [patientId]);
     
@@ -364,7 +370,7 @@ class NurseService {
   static async getTasks(filters = {}) {
     let query = `
       SELECT
-        nt.*,
+        t.*,
         p.name as patient_name,
         p.age,
         p.gender,
@@ -375,27 +381,34 @@ class NurseService {
         mr.diagnosis,
         mr.prescription,
         mr.visit_date,
-        mr.record_id
-      FROM Nurse_Task nt
-      JOIN Patient p ON nt.patient_id = p.patient_id
-      JOIN Doctor d ON nt.doctor_id = d.doctor_id
-      JOIN Medical_Record mr ON nt.record_id = mr.record_id
-      WHERE nt.record_id IS NOT NULL
+        mr.record_id,
+        n.name as assigned_nurse_name
+      FROM Task t
+      JOIN Patient p ON t.patient_id = p.patient_id
+      JOIN Doctor d ON t.doctor_id = d.doctor_id
+      JOIN Medical_Record mr ON t.record_id = mr.record_id
+      LEFT JOIN Nurse n ON t.assigned_nurse_id = n.nurse_id
+      WHERE t.record_id IS NOT NULL
     `;
 
     const params = [];
     if (filters.status) {
-      query += ' AND nt.status = $1';
+      query += ' AND t.status = $1';
       params.push(filters.status);
     }
 
     query += ` ORDER BY
-      CASE nt.status
+      CASE t.priority
+        WHEN 'STAT' THEN 1
+        WHEN 'URGENT' THEN 2
+        WHEN 'ROUTINE' THEN 3
+      END,
+      CASE t.status
         WHEN 'PENDING' THEN 1
         WHEN 'IN_PROGRESS' THEN 2
         WHEN 'COMPLETED' THEN 3
       END,
-      nt.created_at DESC
+      t.created_at DESC
     `;
 
     const result = await pool.query(query, params);
@@ -409,7 +422,7 @@ class NurseService {
       await client.query('BEGIN');
 
       const task = await client.query(
-        'SELECT * FROM Nurse_Task WHERE task_id = $1 FOR UPDATE',
+        'SELECT * FROM Task WHERE task_id = $1 FOR UPDATE',
         [taskId]
       );
       
@@ -417,8 +430,8 @@ class NurseService {
       if (task.rows[0].status !== 'PENDING') throw new Error('TASK_ALREADY_CLAIMED');
 
       const result = await client.query(`
-        UPDATE Nurse_Task
-        SET status = 'IN_PROGRESS', assigned_nurse_id = $1
+        UPDATE Task
+        SET status = 'IN_PROGRESS', assigned_nurse_id = $1, updated_at = CURRENT_TIMESTAMP
         WHERE task_id = $2
         RETURNING *
       `, [nurseId, taskId]);
@@ -443,7 +456,7 @@ class NurseService {
 
       const { status, notes } = updates;
       
-      let query = 'UPDATE Nurse_Task SET status = $1';
+      let query = 'UPDATE Task SET status = $1, updated_at = CURRENT_TIMESTAMP';
       const params = [status];
       let paramIndex = 2;
       
@@ -500,44 +513,35 @@ class NurseService {
   }
 
   static async addNursingNotes(recordId, nurseId, nursing_notes) {
-    const current = await pool.query(
-      'SELECT notes FROM Medical_Record WHERE record_id = $1',
-      [recordId]
-    );
-    
-    if (current.rows.length === 0) throw new Error('RECORD_NOT_FOUND');
+    const result = await pool.query(`
+      UPDATE Medical_Record 
+      SET nursing_notes = COALESCE(nursing_notes, '') || 
+          E'\n[' || CURRENT_TIMESTAMP || ' - Nurse ID: ' || $2 || ']\n' || $3,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE record_id = $1
+      RETURNING *
+    `, [recordId, nurseId, nursing_notes]);
 
-    const existingNotes = JSON.parse(current.rows[0].notes || '{}');
-    existingNotes.nursing_notes = existingNotes.nursing_notes || [];
-    existingNotes.nursing_notes.push({
-      nurse_id: nurseId,
-      timestamp: new Date().toISOString(),
-      notes: nursing_notes
-    });
-
-    await pool.query(
-      'UPDATE Medical_Record SET notes = $1 WHERE record_id = $2',
-      [JSON.stringify(existingNotes), recordId]
-    );
+    if (result.rows.length === 0) throw new Error('RECORD_NOT_FOUND');
 
     console.log(`✅ Nursing notes added to record ${recordId}`);
-    return { success: true };
+    return result.rows[0];
   }
 
   static async getPrescribedMedicines(recordId) {
     const result = await pool.query(`
       SELECT
-        pi.prescription_id,
-        pi.medicine_name,
-        pi.dosage,
-        pi.frequency,
-        pi.duration,
-        pi.quantity_prescribed,
-        pi.instructions,
-        pi.prescribed_at
-      FROM Prescription_Item pi
-      WHERE pi.record_id = $1
-      ORDER BY pi.prescription_id
+        prescription_id,
+        medicine_name,
+        dosage,
+        frequency,
+        duration,
+        quantity_prescribed,
+        instructions,
+        prescribed_date
+      FROM Prescription
+      WHERE record_id = $1
+      ORDER BY prescribed_date DESC
     `, [recordId]);
     
     return result.rows;

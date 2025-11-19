@@ -18,36 +18,59 @@ const RATES = {
   TAX_RATE: 0.18 // 18% GST
 };
 
-// ===== GET BILLING STATS =====
+// ----------------------
+// Helper: check if column exists in Bill table
+// ----------------------
+async function billHasColumn(client, columnName) {
+  const q = `
+    SELECT COUNT(*)::int AS cnt
+    FROM information_schema.columns
+    WHERE table_name = 'bill' AND column_name = $1
+  `;
+  const res = await client.query(q, [columnName]);
+  return res.rows[0].cnt > 0;
+}
+
+// ===== FIXED: GET BILLING STATS =====
 exports.getBillingStats = async () => {
   const client = await pool.connect();
   try {
     const today = new Date().toISOString().split('T')[0];
-    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-    
+    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .split('T')[0];
+
     const [pendingResult, paidTodayResult, monthlyResult, overdueResult] = await Promise.all([
-      // Pending bills
+      // pending + partial
       client.query(`
-        SELECT COUNT(*) as count, COALESCE(SUM(total_amount - paid_amount), 0) as total_pending
+        SELECT COUNT(*) as count, 
+               COALESCE(SUM(total_amount - paid_amount), 0) as total_pending
         FROM Bill
-        WHERE payment_status = 'pending'
+        WHERE payment_status IN ('pending', 'partial')
       `),
-      
+
       // Paid today
-      client.query(`
+      client.query(
+        `
         SELECT COALESCE(SUM(paid_amount), 0) as total_paid_today
         FROM Bill
         WHERE bill_date = $1 AND payment_status = 'paid'
-      `, [today]),
-      
-      // Monthly revenue
-      client.query(`
+      `,
+        [today]
+      ),
+
+      // Monthly revenue (paid or partial)
+      client.query(
+        `
         SELECT COALESCE(SUM(paid_amount), 0) as monthly_revenue
         FROM Bill
-        WHERE bill_date >= $1 AND payment_status IN ('paid', 'partial')
-      `, [firstDayOfMonth]),
-      
-      // Overdue bills (pending > 7 days)
+        WHERE bill_date >= $1 
+        AND payment_status IN ('paid', 'partial')
+      `,
+        [firstDayOfMonth]
+      ),
+
+      // Overdue > 7 days (only pending)
       client.query(`
         SELECT COUNT(*) as count
         FROM Bill
@@ -55,13 +78,13 @@ exports.getBillingStats = async () => {
         AND bill_date < CURRENT_DATE - INTERVAL '7 days'
       `)
     ]);
-    
+
     return {
-      pendingBills: parseInt(pendingResult.rows[0].count),
+      pendingBills: parseInt(pendingResult.rows[0].count, 10),
       pendingAmount: parseFloat(pendingResult.rows[0].total_pending),
       paidToday: parseFloat(paidTodayResult.rows[0].total_paid_today),
       monthlyRevenue: parseFloat(monthlyResult.rows[0].monthly_revenue),
-      overdueBills: parseInt(overdueResult.rows[0].count)
+      overdueBills: parseInt(overdueResult.rows[0].count, 10)
     };
   } finally {
     client.release();
@@ -155,7 +178,7 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
       FROM Medical_Record
       WHERE patient_id = $1 AND visit_date >= $2
     `, [admission.patient_id, admission.admission_date]);
-    const consultationCount = parseInt(consultationResult.rows[0].count);
+    const consultationCount = parseInt(consultationResult.rows[0].count, 10);
     const consultationFee = consultationCount * RATES.CONSULTATION;
     
     // 3. Lab Charges
@@ -168,8 +191,8 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
         AND lo.order_date >= $2
         AND lo.status = 'COMPLETED'
     `, [admission.patient_id, admission.admission_date]);
-    const labCharges = parseFloat(labResult.rows[0].total_lab_cost);
-    const labTestCount = parseInt(labResult.rows[0].test_count);
+    const labCharges = parseFloat(labResult.rows[0].total_lab_cost) || 0;
+    const labTestCount = parseInt(labResult.rows[0].test_count, 10) || 0;
     
     // 4. Medicine Charges (Prescriptions)
     const medicineResult = await client.query(`
@@ -179,8 +202,8 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
       LEFT JOIN Medical_Inventory mi ON LOWER(p.medicine_name) = LOWER(mi.item_name)
       WHERE p.patient_id = $1 AND p.prescribed_date >= $2
     `, [admission.patient_id, admission.admission_date]);
-    const medicineCharges = parseFloat(medicineResult.rows[0].total_medicine_cost);
-    const medicineCount = parseInt(medicineResult.rows[0].medicine_count);
+    const medicineCharges = parseFloat(medicineResult.rows[0].total_medicine_cost) || 0;
+    const medicineCount = parseInt(medicineResult.rows[0].medicine_count, 10) || 0;
     
     // 5. Nursing Charges (Vital Signs)
     const vitalResult = await client.query(`
@@ -188,7 +211,7 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
       FROM Vital_Signs
       WHERE patient_id = $1 AND recorded_at >= $2
     `, [admission.patient_id, admission.admission_date]);
-    const vitalCount = parseInt(vitalResult.rows[0].count);
+    const vitalCount = parseInt(vitalResult.rows[0].count, 10) || 0;
     const nursingCharges = (days * RATES.NURSING_CARE_PER_DAY) + (vitalCount * RATES.VITAL_SIGNS_RECORDING);
     
     // 6. Emergency Charges
@@ -203,17 +226,17 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
         AND it.transaction_date >= $1
         AND it.reason LIKE '%patient ' || $2 || '%'
     `, [admission.admission_date, admission.patient_id]);
-    const equipmentCharges = parseFloat(equipmentResult.rows[0].equipment_cost);
+    const equipmentCharges = parseFloat(equipmentResult.rows[0].equipment_cost) || 0;
     
     // Calculate Subtotal
     const subtotal = roomCharges + consultationFee + labCharges + medicineCharges + 
                      nursingCharges + emergencyCharges + equipmentCharges;
     
     // Calculate Tax
-    const taxAmount = subtotal * RATES.TAX_RATE;
+    const taxAmount = +(subtotal * RATES.TAX_RATE).toFixed(2);
     
     // Calculate Total
-    const totalAmount = subtotal + taxAmount;
+    const totalAmount = +(subtotal + taxAmount).toFixed(2);
     
     return {
       admission_id: admissionId,
@@ -271,188 +294,238 @@ exports.calculateBill = async (admissionId, dischargeDate = null) => {
   }
 };
 
-// ===== GENERATE FINAL BILL =====
+// ===== FIXED & ROBUST: GENERATE FINAL BILL =====
+// This version writes only columns present in DB; if subtotal/tax/discount are present they are included.
 exports.generateBill = async (admissionId, dischargeDate, discount = 0, paymentMethod = null, adminId) => {
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
-    
-    // First, calculate the bill
+
+    // 1) Calculate bill preview
     const calculation = await exports.calculateBill(admissionId, dischargeDate);
-    
-    // Apply discount
-    const discountAmount = discount > 0 ? (calculation.total_amount * discount / 100) : 0;
-    const finalAmount = calculation.total_amount - discountAmount;
-    
-    // ✅ Insert bill - ONLY columns that exist in YOUR Bill table
-    const billResult = await client.query(`
-      INSERT INTO Bill (
-        admission_id,
-        patient_id,
-        bill_date,
-        total_amount,
-        paid_amount,
-        payment_status,
-        payment_method
-      ) VALUES (
-        $1, $2, CURRENT_DATE, $3, 0, 'pending', $4
-      ) RETURNING *
-    `, [
-      admissionId,
-      calculation.patient_id,
-      finalAmount,
-      paymentMethod
-    ]);
-    
+
+    // 2) Discount logic (percentage)
+    const discountAmount = discount > 0 ? +(calculation.total_amount * discount / 100).toFixed(2) : 0;
+    const finalAmount = +(calculation.total_amount - discountAmount).toFixed(2);
+
+    // 3) Determine available columns in Bill table
+    const hasSubtotal = await billHasColumn(client, 'subtotal');
+    const hasTax = await billHasColumn(client, 'tax_amount');
+    const hasDiscount = await billHasColumn(client, 'discount');
+    const hasUpdatedAt = await billHasColumn(client, 'updated_at');
+
+    // Build INSERT dynamically
+    const cols = ['admission_id', 'patient_id', 'bill_date', 'total_amount', 'paid_amount', 'payment_status', 'payment_method'];
+    const placeholders = ['$1','$2','CURRENT_DATE','$3', '0', "'pending'", '$4']; 
+    // We'll adjust placeholders/values to be safe and parameterized
+    const values = [admissionId, calculation.patient_id, finalAmount, (paymentMethod || 'CASH').toUpperCase()];
+
+    // If DB supports subtotal/tax/discount, insert them before total_amount (so adjust positions)
+    // We'll create a clean param list instead of relying on the earlier placeholder list
+    const insertCols = ['admission_id','patient_id','bill_date'];
+    const insertVals = [];
+    const insertParams = [];
+    let paramIndex = 1;
+
+    insertCols.push('total_amount'); // always save total_amount
+    // build dynamic column list and params
+    const columnsToInsert = ['admission_id','patient_id','bill_date'];
+    const params = [];
+    // admission_id, patient_id handled via params
+    params.push(admissionId); // $1
+    params.push(calculation.patient_id); // $2
+
+    if (hasSubtotal) {
+      columnsToInsert.push('subtotal');
+      params.push(calculation.subtotal); // $3 if present
+    }
+    if (hasTax) {
+      columnsToInsert.push('tax_amount');
+      params.push(calculation.tax_amount);
+    }
+    if (hasDiscount) {
+      columnsToInsert.push('discount');
+      params.push(discountAmount);
+    }
+
+    // always: total_amount, paid_amount (0), payment_status, payment_method, created_at is default
+    columnsToInsert.push('total_amount');
+    params.push(finalAmount);
+
+    columnsToInsert.push('paid_amount');
+    params.push(0);
+
+    columnsToInsert.push('payment_status');
+    params.push('pending');
+
+    columnsToInsert.push('payment_method');
+    params.push((paymentMethod || 'CASH').toUpperCase());
+
+    // Build SQL placeholders
+    const placeholdersArr = params.map((_, i) => `$${i+1}`);
+    const insertQuery = `
+      INSERT INTO Bill (${columnsToInsert.join(',')})
+      VALUES (${placeholdersArr.join(',')})
+      RETURNING *
+    `;
+
+    // Insert bill
+    const billResult = await client.query(insertQuery, params);
     const bill = billResult.rows[0];
-    
-    // Insert bill items (detailed breakdown)
+
+    // 4) Insert bill items (detailed breakdown)
     const billItems = [];
-    
-    // 1. Room Charges
+
     if (calculation.breakdown.room.total > 0) {
       billItems.push({
-        type: 'ROOM',
+        item_type: 'ROOM',
         description: `${calculation.ward_name} - Bed ${calculation.bed_number} (${calculation.total_days} days @ ₹${calculation.breakdown.room.rate}/day)`,
         quantity: calculation.total_days,
         unit_price: calculation.breakdown.room.rate,
-        total: calculation.breakdown.room.total
+        total_price: calculation.breakdown.room.total
       });
     }
-    
-    // 2. Doctor Consultation
+
     if (calculation.breakdown.consultation.total > 0) {
       billItems.push({
-        type: 'CONSULTATION',
+        item_type: 'CONSULTATION',
         description: `Doctor Consultation - ${calculation.breakdown.consultation.count} visits @ ₹${RATES.CONSULTATION}/visit`,
         quantity: calculation.breakdown.consultation.count,
         unit_price: RATES.CONSULTATION,
-        total: calculation.breakdown.consultation.total
+        total_price: calculation.breakdown.consultation.total
       });
     }
-    
-    // 3. Lab Tests
+
     if (calculation.breakdown.lab.total > 0) {
       billItems.push({
-        type: 'LAB_TEST',
-        description: `Laboratory Tests - ${calculation.breakdown.lab.count} tests completed`,
+        item_type: 'LAB_TEST',
+        description: `Laboratory Tests - ${calculation.breakdown.lab.count} tests`,
         quantity: calculation.breakdown.lab.count,
         unit_price: calculation.breakdown.lab.total / Math.max(1, calculation.breakdown.lab.count),
-        total: calculation.breakdown.lab.total
+        total_price: calculation.breakdown.lab.total
       });
     }
-    
-    // 4. Medicines
+
     if (calculation.breakdown.medicines.total > 0) {
       billItems.push({
-        type: 'MEDICINE',
+        item_type: 'MEDICINE',
         description: `Prescribed Medicines - ${calculation.breakdown.medicines.count} items`,
         quantity: calculation.breakdown.medicines.count,
         unit_price: calculation.breakdown.medicines.total / Math.max(1, calculation.breakdown.medicines.count),
-        total: calculation.breakdown.medicines.total
+        total_price: calculation.breakdown.medicines.total
       });
     }
-    
-    // 5. Nursing Care
+
     if (calculation.breakdown.nursing.total > 0) {
       billItems.push({
-        type: 'NURSING',
-        description: `Nursing Care - ${calculation.total_days} days + ${calculation.breakdown.nursing.vitalCount} vital recordings`,
+        item_type: 'NURSING',
+        description: `Nursing Care - ${calculation.total_days} days + ${calculation.breakdown.nursing.vitalCount} vitals`,
         quantity: 1,
         unit_price: calculation.breakdown.nursing.total,
-        total: calculation.breakdown.nursing.total
+        total_price: calculation.breakdown.nursing.total
       });
     }
-    
-    // 6. Emergency Charges
+
     if (calculation.breakdown.emergency.total > 0) {
       billItems.push({
-        type: 'EMERGENCY',
-        description: 'Emergency Surcharge - Critical care',
+        item_type: 'EMERGENCY',
+        description: `Emergency Surcharge`,
         quantity: 1,
         unit_price: calculation.breakdown.emergency.total,
-        total: calculation.breakdown.emergency.total
+        total_price: calculation.breakdown.emergency.total
       });
     }
-    
-    // 7. Equipment Charges
+
     if (calculation.breakdown.equipment.total > 0) {
       billItems.push({
-        type: 'EQUIPMENT',
-        description: 'Medical Equipment Usage',
+        item_type: 'EQUIPMENT',
+        description: `Medical Equipment Usage`,
         quantity: 1,
         unit_price: calculation.breakdown.equipment.total,
-        total: calculation.breakdown.equipment.total
+        total_price: calculation.breakdown.equipment.total
       });
     }
-    
-    // 8. Tax
-    billItems.push({
-      type: 'TAX',
-      description: `GST @ ${RATES.TAX_RATE * 100}%`,
-      quantity: 1,
-      unit_price: calculation.tax_amount,
-      total: calculation.tax_amount
-    });
-    
-    // 9. Discount (if applicable)
+
+    // Tax item
+    if (calculation.tax_amount > 0) {
+      billItems.push({
+        item_type: 'TAX',
+        description: `GST @ ${RATES.TAX_RATE * 100}%`,
+        quantity: 1,
+        unit_price: calculation.tax_amount,
+        total_price: calculation.tax_amount
+      });
+    }
+
+    // Discount (as negative line)
     if (discountAmount > 0) {
       billItems.push({
-        type: 'DISCOUNT',
+        item_type: 'DISCOUNT',
         description: `Discount - ${discount}%`,
         quantity: 1,
-        unit_price: -discountAmount,
-        total: -discountAmount
+        unit_price: -Math.abs(discountAmount),
+        total_price: -Math.abs(discountAmount)
       });
     }
-    
-    // Insert all bill items
+
+    // Insert bill items
+    const insertItemQuery = `
+      INSERT INTO Bill_Item (bill_id, item_type, description, quantity, unit_price, total_price)
+      VALUES ($1,$2,$3,$4,$5,$6)
+    `;
     for (const item of billItems) {
-      await client.query(`
-        INSERT INTO Bill_Item (
-          bill_id, item_type, description, quantity, unit_price, total_price
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-      `, [bill.bill_id, item.type, item.description, item.quantity, item.unit_price, item.total]);
+      await client.query(insertItemQuery, [
+        bill.bill_id,
+        item.item_type,
+        item.description,
+        item.quantity,
+        item.unit_price,
+        item.total_price
+      ]);
     }
-    
-    // Update admission status to 'discharged'
+
+    // 5) Optionally discharge patient and free bed if desired here (existing behavior)
+    // NOTE: Current workflow in your schema expects discharge on full payment, but generateBill previously discharged automatically.
+    // We'll keep minimal behavior: don't force discharge here (since generateBill was used to finalize billing and discharge earlier).
+    // If you want auto-discharge at bill generation, uncomment the following block:
+
+    /*
     await client.query(`
-      UPDATE IPD_Admission 
-      SET status = 'discharged', 
+      UPDATE IPD_Admission
+      SET status = 'discharged',
           discharge_date = $1
       WHERE admission_id = $2
     `, [calculation.discharge_date, admissionId]);
-    
-    // Update bed status to 'available'
+
     await client.query(`
-      UPDATE Bed 
-      SET status = 'available', 
+      UPDATE Bed
+      SET status = 'available',
           current_patient_id = NULL
       WHERE bed_id = (
         SELECT bed_id FROM IPD_Admission WHERE admission_id = $1
       )
     `, [admissionId]);
-    
-    // Update patient discharge date
+
     await client.query(`
       UPDATE Patient 
       SET date_discharge = $1
       WHERE patient_id = $2
     `, [calculation.discharge_date, calculation.patient_id]);
-    
+    */
+
     await client.query('COMMIT');
-    
-    console.log(`✅ Bill generated: Bill ID ${bill.bill_id} for ${calculation.patient_name} - Total: ₹${finalAmount}`);
-    
+
     return {
       ...bill,
       patient_name: calculation.patient_name,
       ward_name: calculation.ward_name,
       doctor_name: calculation.doctor_name,
-      admission_date: calculation.admission_date,
-      discharge_date: calculation.discharge_date,
-      total_days: calculation.total_days,
-      breakdown: calculation.breakdown
+      breakdown: calculation.breakdown,
+      subtotal: calculation.subtotal,
+      tax_amount: calculation.tax_amount,
+      discount_amount: discountAmount,
+      total_amount: finalAmount
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -462,6 +535,7 @@ exports.generateBill = async (admissionId, dischargeDate, discount = 0, paymentM
     client.release();
   }
 };
+
 // ===== GET ALL BILLS WITH FILTERS =====
 exports.getAllBills = async (filters = {}) => {
   const client = await pool.connect();
@@ -487,11 +561,17 @@ exports.getAllBills = async (filters = {}) => {
     const params = [];
     let paramCount = 1;
     
-    // Filter by payment status
+    // Filter by payment status - include both 'pending' AND 'partial'
     if (filters.status) {
-      query += ` AND b.payment_status = $${paramCount}`;
-      params.push(filters.status);
-      paramCount++;
+      if (filters.status === 'pending') {
+        // Show both pending and partial bills
+        query += ` AND b.payment_status IN ('pending', 'partial')`;
+      } else {
+        // For other statuses (paid, overdue), show exact match
+        query += ` AND b.payment_status = $${paramCount}`;
+        params.push(filters.status);
+        paramCount++;
+      }
     }
     
     // Filter by date range
@@ -517,6 +597,42 @@ exports.getAllBills = async (filters = {}) => {
     query += ` ORDER BY b.bill_date DESC, b.bill_id DESC`;
     
     const result = await client.query(query, params);
+    return result.rows;
+  } finally {
+    client.release();
+  }
+};
+
+// ===== GET PENDING BILLS (pending + partial) =====
+exports.getPendingBills = async () => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT 
+        b.*,
+        p.name as patient_name,
+        p.age,
+        p.gender,
+        p.contact,
+        d.name as doctor_name,
+        a.admission_date,
+        w.name as ward_name,
+        (b.total_amount - b.paid_amount) as balance_due
+      FROM Bill b
+      JOIN Patient p ON b.patient_id = p.patient_id
+      LEFT JOIN IPD_Admission a ON b.admission_id = a.admission_id
+      LEFT JOIN Doctor d ON a.doctor_id = d.doctor_id
+      LEFT JOIN Bed bed ON a.bed_id = bed.bed_id
+      LEFT JOIN Ward w ON bed.ward_id = w.ward_id
+      WHERE b.payment_status IN ('pending', 'partial')
+      ORDER BY 
+        CASE b.payment_status
+          WHEN 'partial' THEN 1
+          WHEN 'pending' THEN 2
+        END,
+        b.bill_date ASC
+    `);
+    
     return result.rows;
   } finally {
     client.release();
@@ -579,6 +695,7 @@ exports.getBillDetails = async (billId) => {
     client.release();
   }
 };
+
 // ===== UPDATE BILL =====
 exports.updateBill = async (billId, updates) => {
   const client = await pool.connect();
@@ -600,7 +717,7 @@ exports.updateBill = async (billId, updates) => {
       throw new Error('No valid fields to update');
     }
     
-    setClause.push(`updated_at = CURRENT_TIMESTAMP`);
+    setClause.push(`created_at = created_at`); // keep created_at as-is
     values.push(billId);
     
     const query = `
@@ -629,7 +746,7 @@ exports.deleteBill = async (billId) => {
       WHERE bill_id = $1
     `, [billId]);
     
-    if (parseInt(paymentCheck.rows[0].count) > 0) {
+    if (parseInt(paymentCheck.rows[0].count, 10) > 0) {
       throw new Error('Cannot delete bill with payment history');
     }
     
@@ -656,7 +773,7 @@ exports.processPayment = async (billId, amount, paymentMethod, referenceNumber, 
     
     // Get current bill
     const billResult = await client.query(`
-      SELECT * FROM Bill WHERE bill_id = $1
+      SELECT * FROM Bill WHERE bill_id = $1 FOR UPDATE
     `, [billId]);
     
     if (billResult.rows.length === 0) {
@@ -664,8 +781,13 @@ exports.processPayment = async (billId, amount, paymentMethod, referenceNumber, 
     }
     
     const bill = billResult.rows[0];
-    const newPaidAmount = parseFloat(bill.paid_amount) + parseFloat(amount);
-    const totalAmount = parseFloat(bill.total_amount);
+    const currentPaid = parseFloat(bill.paid_amount) || 0;
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw new Error('Invalid payment amount');
+    }
+    const newPaidAmount = +(currentPaid + parsedAmount).toFixed(2);
+    const totalAmount = parseFloat(bill.total_amount) || 0;
     
     // Determine payment status
     let paymentStatus;
@@ -677,32 +799,77 @@ exports.processPayment = async (billId, amount, paymentMethod, referenceNumber, 
       paymentStatus = 'pending';
     }
     
+    // Normalize payment method
+    const normalizedPaymentMethod = (paymentMethod || 'CASH').toUpperCase();
+    
     // Insert payment transaction
     const paymentResult = await client.query(`
       INSERT INTO Payment_Transaction (
-        bill_id, amount, payment_method, reference_number, status, created_by
+        bill_id, amount, payment_method, reference_number, status, notes
       ) VALUES ($1, $2, $3, $4, 'SUCCESS', $5)
       RETURNING *
-    `, [billId, amount, paymentMethod, referenceNumber, adminId]);
+    `, [
+      billId,
+      parsedAmount,
+      // Payment_Transaction has a CHECK that expects specific casing (Cash, Card, UPI, Bank Transfer, Insurance).
+      // We'll insert with Title Case to satisfy the CHECK (fallback to 'Cash' if not matched).
+      (function normalizeForTransaction(pm) {
+        const up = pm.toUpperCase();
+        if (up.includes('CARD')) return 'Card';
+        if (up.includes('UPI')) return 'UPI';
+        if (up.includes('BANK')) return 'Bank Transfer';
+        if (up.includes('INSURANCE')) return 'Insurance';
+        return 'Cash';
+      })(normalizedPaymentMethod),
+      referenceNumber || `PAY-${Date.now()}`,
+      `Payment of ₹${parsedAmount} processed by ${adminId || 'admin'}`
+    ]);
     
     // Update bill
     await client.query(`
       UPDATE Bill 
       SET paid_amount = $1,
           payment_status = $2,
-          payment_method = $3,
-          payment_date = CASE WHEN $2 = 'paid' THEN CURRENT_DATE ELSE payment_date END,
-          updated_at = CURRENT_TIMESTAMP
+          payment_method = $3
       WHERE bill_id = $4
-    `, [newPaidAmount, paymentStatus, paymentMethod, billId]);
+    `, [newPaidAmount, paymentStatus, normalizedPaymentMethod, billId]);
+    
+    // If fully paid, discharge patient automatically
+    if (paymentStatus === 'paid' && bill.admission_id) {
+      await client.query(`
+        UPDATE IPD_Admission
+        SET status = 'discharged',
+            discharge_date = CURRENT_DATE,
+            discharge_time = CURRENT_TIME,
+            discharge_summary = 'Payment completed - Patient discharged'
+        WHERE admission_id = $1
+      `, [bill.admission_id]);
+      
+      await client.query(`
+        UPDATE Bed
+        SET status = 'available',
+            current_patient_id = NULL
+        WHERE bed_id = (
+          SELECT bed_id FROM IPD_Admission WHERE admission_id = $1
+        )
+      `, [bill.admission_id]);
+    }
     
     await client.query('COMMIT');
     
-    console.log(`✅ Payment processed: ₹${amount} for Bill ID ${billId}`);
+    console.log(`✅ Payment processed: ₹${parsedAmount} for Bill ID ${billId}. New balance: ₹${(totalAmount - newPaidAmount).toFixed(2)}`);
     
-    return paymentResult.rows[0];
+    return {
+      ...paymentResult.rows[0],
+      bill_id: billId,
+      new_paid_amount: newPaidAmount,
+      remaining_balance: +(totalAmount - newPaidAmount).toFixed(2),
+      payment_status: paymentStatus,
+      patient_discharged: paymentStatus === 'paid' && bill.admission_id ? true : false
+    };
   } catch (error) {
     await client.query('ROLLBACK');
+    console.error('❌ Error processing payment:', error);
     throw error;
   } finally {
     client.release();
@@ -716,8 +883,7 @@ exports.updatePaymentStatus = async (billId, status) => {
     await client.query(`
       UPDATE Bill 
       SET payment_status = $1,
-          payment_date = CASE WHEN $1 = 'paid' THEN CURRENT_DATE ELSE payment_date END,
-          updated_at = CURRENT_TIMESTAMP
+          created_at = created_at
       WHERE bill_id = $2
     `, [status, billId]);
   } finally {
@@ -727,7 +893,6 @@ exports.updatePaymentStatus = async (billId, status) => {
 
 // ===== GET INVOICE =====
 exports.getInvoice = async (billId) => {
-  // Reuse getBillDetails as it has all the information needed
   return await exports.getBillDetails(billId);
 };
 
@@ -785,6 +950,10 @@ exports.getActiveAdmissions = async () => {
       JOIN Ward w ON b.ward_id = w.ward_id
       JOIN Doctor d ON a.doctor_id = d.doctor_id
       WHERE a.status = 'active'
+        AND NOT EXISTS (
+          SELECT 1 FROM Bill 
+          WHERE Bill.admission_id = a.admission_id
+        )
       ORDER BY a.admission_date ASC
     `);
     

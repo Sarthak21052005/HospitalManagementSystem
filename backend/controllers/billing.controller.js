@@ -217,3 +217,21 @@ exports.getActiveAdmissions = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch active admissions', message: error.message });
   }
 };
+
+// controllers/billing.controller.js
+
+// Add this after getAllBills function:
+
+exports.getPendingBills = async (req, res) => {
+  try {
+    const bills = await BillingService.getPendingBills();
+    res.json({ success: true, data: bills });
+  } catch (error) {
+    console.error('Error fetching pending bills:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch pending bills',
+      error: error.message 
+    });
+  }
+};
